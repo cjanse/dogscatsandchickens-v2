@@ -1,0 +1,1 @@
+export type UpgradeType = "counterAttack" | "defense" | "fakeUpgrade" | "revive" | "selfDestruct";

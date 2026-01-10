@@ -1,0 +1,1 @@
+export type CreatureType = "dog" | "cat" | "chicken";

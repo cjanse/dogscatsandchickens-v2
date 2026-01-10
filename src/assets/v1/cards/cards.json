@@ -1,0 +1,227 @@
+[
+    {
+        "id": "Bella_Cat",
+        "name": "Bella",
+        "type": "creature",
+        "creatureType": "cat",
+        "matchingAbilityType": "multipleAttacks",
+        "front": "bella.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Pounce_Cat",
+        "name": "Pounce",
+        "type": "creature",
+        "creatureType": "cat",
+        "matchingAbilityType": "multipleAttacks",
+        "front": "pounce.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Snowball_Cat",
+        "name": "Snowball",
+        "type": "creature",
+        "creatureType": "cat",
+        "matchingAbilityType": "multipleAttacks",
+        "front": "snowball.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Fancy_Bella_Dog",
+        "name": "Fancy Bella",
+        "type": "creature",
+        "creatureType": "dog",
+        "matchingAbilityType": "alwaysWin",
+        "front": "fancy_bella.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Pretty_Bella_Dog",
+        "name": "Pretty Bella",
+        "type": "creature",
+        "creatureType": "dog",
+        "matchingAbilityType": "alwaysWin",
+        "front": "pretty_bella.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Puppy_Bella_Dog",
+        "name": "Puppy Bella",
+        "type": "creature",
+        "creatureType": "dog",
+        "matchingAbilityType": "alwaysWin",
+        "front": "puppy_bella.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Lulu_Chicken",
+        "name": "Lulu",
+        "type": "creature",
+        "creatureType": "chicken",
+        "matchingAbilityType": "seeEverything",
+        "front": "lulu.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Olive_Chicken",
+        "name": "Olive",
+        "type": "creature",
+        "creatureType": "chicken",
+        "matchingAbilityType": "seeEverything",
+        "front": "olive.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "The_Family_Chicken",
+        "name": "The Family",
+        "type": "creature",
+        "creatureType": "chicken",
+        "matchingAbilityType": "seeEverything",
+        "front": "the_family.jpg",
+        "back": "creature.jpg"
+    },
+    {
+        "id": "Cactus_Attack_CA",
+        "name": "Cactus Attack",
+        "type": "upgrade",
+        "upgradeType": "counterAttack",
+        "front": "cactus_attack.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Duck_Army_CA",
+        "name": "Duck Army",
+        "type": "upgrade",
+        "upgradeType": "counterAttack",
+        "front": "duck_army.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Deflect_Defense",
+        "name": "Deflect",
+        "type": "upgrade",
+        "upgradeType": "defense",
+        "front": "deflect.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Sand_Shield_Defense",
+        "name": "Sand Shield",
+        "type": "upgrade",
+        "upgradeType": "defense",
+        "front": "sand_shield.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Payphone_FU",
+        "name": "Payphones Don't Exist Anymore",
+        "type": "upgrade",
+        "upgradeType": "fakeUpgrade",
+        "front": "payphones_dont_exist_anymore.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Fading_Away_FU",
+        "name": "Fading Away",
+        "type": "upgrade",
+        "upgradeType": "fakeUpgrade",
+        "front": "fading_away.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Sleeping_FU",
+        "name": "Sleeping",
+        "type": "upgrade",
+        "upgradeType": "fakeUpgrade",
+        "front": "sleeping.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Squirrel_Revive",
+        "name": "Cool Down Squirrel",
+        "type": "upgrade",
+        "upgradeType": "revive",
+        "front": "cool_down_squirrel.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Snow_Apocalypse_Self_Destruct",
+        "name": "Snow Apocalypse",
+        "type": "upgrade",
+        "upgradeType": "selfDestruct",
+        "front": "snow_apocalypse.jpg",
+        "back": "upgrade.jpg"
+    },
+    {
+        "id": "Beach_Spirits",
+        "name": "Beach Spirits",
+        "type": "action",
+        "actionType": "spirit",
+        "front": "beach_spirits.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "Forest_Spirits",
+        "name": "Forest Spirits",
+        "type": "action",
+        "actionType": "spirit",
+        "front": "forest_spirits.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "River_Spirits",
+        "name": "River Spirits",
+        "type": "action",
+        "actionType": "spirit",
+        "front": "river_spirits.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "Bird_Army_1",
+        "name": "Bird Army",
+        "type": "action",
+        "actionType": "birdArmy",
+        "front": "bird_army_1.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "Bird_Army_2",
+        "name": "Bird Army",
+        "type": "action",
+        "actionType": "birdArmy",
+        "front": "bird_army_2.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "Messy_Dorm_1",
+        "name": "Messy Dorm",
+        "type": "action",
+        "actionType": "messyDorm",
+        "front": "messy_dorm_1.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "Messy_Dorm_2",
+        "name": "Messy Dorm",
+        "type": "action",
+        "actionType": "messyDorm",
+        "front": "messy_dorm_2.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "Power_of_Tea_1",
+        "name": "Power of Tea",
+        "type": "action",
+        "actionType": "powerOfTea",
+        "front": "power_of_tea_1.jpg",
+        "back": "action.jpg"
+    },
+    {
+        "id": "Power_of_Tea_2",
+        "name": "Power of Tea",
+        "type": "action",
+        "actionType": "powerOfTea",
+        "front": "power_of_tea_2.jpg",
+        "back": "action.jpg"
+    }
+]
