@@ -1,3 +1,87 @@
+# Dogscatsandchickens v2
+
+A web-based version of the legacy Dog, Cats, and Chickens card game (v1), built with **React**, **TypeScript**, and **Vite**. Supports future expansion for v2 while preserving the original v1 gameplay.
+
+---
+
+## Prerequisites
+
+Before running the project, make sure you have the following installed:
+
+- [Node.js ≥ 20.19](https://nodejs.org/) (or ≥22.12)
+- [npm](https://www.npmjs.com/) (comes with Node.js)
+- [Git](https://git-scm.com/)
+
+> ⚠️ Node.js 18.x is **not supported** due to Vite requirements.
+
+---
+
+## Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/<your-username>/dogscatsandchickens-v2.git
+cd dogscatsandchickens-v2
+```
+
+2. Install the dependencies
+
+```bash
+npm install
+```
+This will install all required packages, including React, TypeScript, Vite, and Vitest for testing.
+
+## Running the development server
+Start the local development server:
+```bash
+npm run dev
+```
+You should see output similar to:
+```perl
+  Local:   http://localhost:5173/
+  Network: use --host to expose
+```
+Open the URL in your browser to see the app running. Any changes you make to the code will hot-reload automatically.
+
+## Running unit tests
+Unit test are implemented using **Vitest**. To run all tests:
+```bash
+npm run test
+```
+For continuous test feedback while coding:
+```bash
+npx vitest --watch
+```
+Tests cover the model layer:
+- CardFactory & card subclasses
+- DeckFactory & Deck
+- Player
+- GameBoard
+
+## Folder Structure (relevant to v1)
+```test
+src/
+ ├─ assets/
+ │   ├─ v1/
+ │   │   ├─ cards.json
+ │   │   ├─ deck.json
+ │   │   └─ images/*.jpg
+ ├─ model/
+ │   ├─ cards/        # Card classes + CardFactory
+ │   ├─ deck/         # Deck + DeckFactory
+ │   ├─ game/         # GameBoard + Player
+ │   └─ types/        # TypeScript type definitions
+ └─ tests/            # Unit tests
+```
+
+## Notes 
+- deck.json defines the composition of the deck (number of copies per card).
+- cards.json defines all card types and their properties
+- instanceId is automatically generated for each card instance at runtime.
+- The model is fully unit-tested and independent of UI code.
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
