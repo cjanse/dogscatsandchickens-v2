@@ -17,10 +17,19 @@ export class Player {
         this.hand.push(card);
     }
 
-    playToField(card: Card, row: number, col: number) {
+    removeFromHand(instanceId: string): Card | undefined {
+        const index = this.hand.findIndex(obj => obj.instanceId === instanceId)
+        if (index === -1) return undefined;
+        return this.hand.splice(index, 1)[0];
+    }
+
+    playToField(instanceId: string, row: number, col: number) {
+        const index = this.hand.findIndex(obj => obj.instanceId === instanceId)
+        if (index === -1) return;
+        const playCard = this.hand[index];
         if (!this.field[row][col]) {
-            this.field[row][col] = card;
-            this.hand = this.hand.filter(c => c !== card);
+            this.field[row][col] = playCard;
+            this.hand = this.hand.filter(c => c !== playCard);
         }
     }
 }

@@ -12,7 +12,7 @@ export class CardFactory {
                     data.id,
                     data.name,
                     data.creatureType!,
-                    data.matchingAbilityDescription!
+                    data.matchingAbilityType!
                 );
             case "upgrade":
                 return new UpgradeCard(
