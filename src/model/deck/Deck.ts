@@ -18,4 +18,9 @@ export class Deck {
     get size() {
         return this.cards.length;
     }
+
+    //Debugging tool, need to remove in production
+    get deck() {
+        return this.cards
+    }
 }

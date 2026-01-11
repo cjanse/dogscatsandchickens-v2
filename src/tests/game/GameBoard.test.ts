@@ -86,7 +86,7 @@ describe('GameBoard', () => {
         const card = CardFactory.create(data);
         alice.addToHand(card);
         alice.playToField(card.instanceId, 0, 0);
-        expect(game.players[0].field[0][0]).toBe(card);
+        expect(game.players[0].field[1][0]).toBe(card); //Expect card to be in first row due to expandFieldIfNeeded functionality
         expect(game.players[0].hand.length).toBe(0);
     });
 });
