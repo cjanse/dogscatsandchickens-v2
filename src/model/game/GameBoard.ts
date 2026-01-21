@@ -1,9 +1,16 @@
+import type { Card } from "../cards/Card";
 import type { Deck } from "../deck/Deck";
 import type { Player } from "./Player";
 
+//Types
+export type TemporaryEffect = 
+| { type: "revealHand"; sourcePlayerId: number; targetPlayerId: number;};
+
 export class GameBoard {
+  temporaryEffects: TemporaryEffect[] = [];
   readonly players: Player[];
   readonly deck: Deck;
+  readonly discardPile: Card[] = [];
   currentPlayerIndex: number;
 
   constructor(players: Player[], deck: Deck) {
@@ -19,5 +26,13 @@ export class GameBoard {
   nextTurn() {
     this.currentPlayerIndex =
       (this.currentPlayerIndex + 1) % this.players.length;
+  }
+
+  discard(card: Card) {
+    this.discardPile.push(card);
+  }
+
+  getDiscardPile(): Card[] {
+    return this.discardPile;
   }
 }

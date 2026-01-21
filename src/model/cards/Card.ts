@@ -7,6 +7,7 @@ export abstract class Card {
   readonly name: string;
   readonly type: CardType;
   readonly instanceId: string
+  facedUp: boolean = false;
 
   constructor(id: string, name: string, type: CardType, instanceId?: string) {
     this.id = id;

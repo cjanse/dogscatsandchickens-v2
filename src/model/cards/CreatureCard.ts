@@ -6,7 +6,6 @@ import { Card } from "./Card";
 
 export class CreatureCard extends Card {
   creatureType: CreatureType;
-  facedUp: boolean = false;
   matchingAbilityType: MatchingAbilityType;
   matched: boolean = false;
 
