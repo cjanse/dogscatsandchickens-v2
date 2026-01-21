@@ -46,7 +46,7 @@ describe('Player', () => {
         expect(player.hand[0].id).toBe("dog_basic");
         player.playToField(card.instanceId, 0, 0);
 
-        expect(player.field[0][0]).toBe(card);
+        expect(player.field[1][0]).toBe(card); //Expect card to be in first row due to expandFieldIfNeeded functionality
         expect(player.hand.length).toBe(0);
     });
 });

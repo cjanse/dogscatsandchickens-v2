@@ -5,7 +5,6 @@ import { Card } from "./Card";
 
 export class UpgradeCard extends Card {
   upgradeType: UpgradeType;
-  facedUp: boolean = false;
 
   constructor(id: string, name: string, upgradeType: UpgradeType, instanceId?: string) {
     super(id, name, "upgrade", instanceId);
