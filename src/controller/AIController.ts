@@ -54,8 +54,8 @@ export class AIController {
   }
 
   private drawIfPossible(player: PlayerView): void {
-    if (this.gameController.canDrawCard(player.id)) {
-      this.gameController.drawCard(player.id);
+    if (this.gameController.canDrawCard(player)) {
+      this.gameController.drawCard(player);
     }
   }
 
@@ -74,12 +74,7 @@ export class AIController {
       for (let row = -1; row <= player.field.length; row++) {
         for (let col = 0; col < 4; col++) {
           if (
-            this.gameController.canPlayCard(
-              player.id,
-              card.instanceId,
-              row,
-              col
-            )
+            this.gameController.canPlayCard(player, card, row, col)
           ) {
             moves.push({
               type: "placeCard",
@@ -135,12 +130,7 @@ export class AIController {
     switch (move.type) {
       case "placeCard":
         if (move.card && move.row !== undefined && move.col !== undefined) {
-          this.gameController.playCard(
-            player.id,
-            move.card.instanceId,
-            move.row,
-            move.col
-          );
+          this.gameController.playCard(player, move.card, move.row, move.col);
         }
         break;
 

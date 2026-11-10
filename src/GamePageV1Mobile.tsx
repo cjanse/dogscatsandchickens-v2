@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GameController } from "./controller/GameController";
-import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
 import { cardBackUrl, cardFrontUrl } from "./app/cardImages";
 import { fieldRowsWithPlaceholders } from "./app/fieldRows";
@@ -9,16 +8,23 @@ import type { FieldView } from "./model/game/views";
 export default function GamePageV1Mobile() {
   // Mobile view - vertical scrolling layout
   const [, forceUpdate] = useState(0);
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [discardPileExpanded, setDiscardPileExpanded] = useState(false);
   // Created once; the controller is a stable mutable object (views call forceUpdate after mutations).
-  const [{ controller, aiController }] = useState(() => {
+  const [controller] = useState(() => {
     const { cardDefs, deckConfig } = loadV1Assets();
     // Set to true to play against AI, false for two human players
     const player2IsAI = true;
-    const controller = new GameController(cardDefs, deckConfig, player2IsAI);
-    return { controller, aiController: new AIController(controller) };
+    return new GameController(cardDefs, deckConfig, player2IsAI);
   });
+
+  // The controller runs the AI's turns itself and tells us when something changed
+  useEffect(() => {
+    const unsubscribe = controller.subscribe(() => forceUpdate((n) => n + 1));
+    return () => {
+      unsubscribe();
+      controller.dispose();
+    };
+  }, [controller]);
 
   const game = controller.getGameState();
 
@@ -67,16 +73,11 @@ export default function GamePageV1Mobile() {
                   ? row.length - 1 - visualColIndex
                   : visualColIndex;
                 
-                const isVisible = cell && controller.isCardVisibleToPlayer(cell, isOpponent ? opponentIndex : currentPlayerIndex);
-                const isSelected = selectedCardId !== null;
+                const fieldOwner = isOpponent ? opponent : currentPlayer;
+                const isVisible = cell && controller.isCardVisibleToPlayer(cell, fieldOwner);
+                const isSelected = controller.getSelectedCard() !== null;
 
-                const canPlaceHere =
-                  controller.canPlayCard(
-                    isOpponent ? opponentIndex: currentPlayerIndex,
-                    selectedCardId,
-                    modelRowIndex,
-                    modelColIndex
-                  );
+                const canPlaceHere = controller.canClickField(fieldOwner, modelRowIndex, modelColIndex);
 
                 let borderColor = "black";
                 let cursor = "default";
@@ -94,48 +95,9 @@ export default function GamePageV1Mobile() {
                     onClick={() => {
                       if (!canPlaceHere) return;
 
-                      if (controller.getTurnType() === "attack") {
-                        if (isOpponent) {
-                          const result = controller.resolveAttack(modelRowIndex, modelColIndex);
-                          if (!result.success) alert(result.reason);
-                          setSelectedCardId(null);
-                          rerender();
-                          return;
-                        } else {
-                          const result = controller.startAttack(modelRowIndex, modelColIndex);
-                          if (result.success) {
-                            setSelectedCardId(
-                              currentPlayer.field[modelRowIndex][modelColIndex]!.instanceId
-                            );
-                          }
-                          rerender();
-                          return;
-                        }
-                      }
-
-                      if (
-                        controller.getMovesLeft() === controller.getMaxMoves() &&
-                        !selectedCardId
-                      ) {
-                        const result = controller.startAttack(modelRowIndex, modelColIndex);
-                        if (result.success) {
-                          setSelectedCardId(
-                            currentPlayer.field[modelRowIndex][modelColIndex]!.instanceId
-                          );
-                        }
-                        rerender();
-                        return;
-                      }
-
-                      const result = controller.playCard(
-                        isOpponent ? opponentIndex : currentPlayerIndex,
-                        selectedCardId as string,
-                        modelRowIndex,
-                        modelColIndex
-                      );
-
+                      // The controller decides whether this click attacks, places a card or targets Power of Tea
+                      const result = controller.clickField(fieldOwner, modelRowIndex, modelColIndex);
                       if (!result.success) alert(result.reason);
-                      setSelectedCardId(null);
                       rerender();
                     }}
                     style={{
@@ -198,7 +160,7 @@ export default function GamePageV1Mobile() {
             {opponent.hand.map((card) => (
               <img
                 key={card.instanceId}
-                src={controller.isCardVisibleToPlayer(card, opponentIndex) ? cardFrontUrl(card) : cardBackUrl(card)}
+                src={controller.isCardVisibleToPlayer(card, opponent) ? cardFrontUrl(card) : cardBackUrl(card)}
                 alt={card.name}
                 style={{
                   width: 50,
@@ -206,17 +168,16 @@ export default function GamePageV1Mobile() {
                   objectFit: "cover",
                   cursor: controller.canInteractWithOpponentCard(opponent) ? "pointer" : "not-allowed",
                   border: "1px solid black",
-                  opacity: controller.isCardVisibleToPlayer(card, opponentIndex) ? 1 : 0.6
+                  opacity: controller.isCardVisibleToPlayer(card, opponent) ? 1 : 0.6
                 }}
                 onClick={() => {
-                  const result = controller.interactWithOpponentCard(opponent, selectedCardId, card);
+                  const result = controller.interactWithOpponentCard(opponent, card);
 
                   if (!result.success) {
                     alert(`Cannot place card: ${result.reason}`);
                     return;
                   }
 
-                  setSelectedCardId(null);
                   rerender();
                 }}
               />
@@ -237,20 +198,20 @@ export default function GamePageV1Mobile() {
             <p style={{ margin: "0 0 2px 0", fontSize: "11px" }}>Deck ({game.deck.size})</p>
             <div
               onClick={() => {
-                if (controller.canDrawCard(currentPlayerIndex)) {
-                  controller.drawCard(currentPlayerIndex);
+                if (controller.canDrawCard(currentPlayer)) {
+                  controller.drawCard(currentPlayer);
                   rerender();
                 }
               }}
               style={{
                 width: 80,
                 height: 100,
-                border: controller.canDrawCard(currentPlayerIndex) ? "3px solid green" : "2px solid black",
+                border: controller.canDrawCard(currentPlayer) ? "3px solid green" : "2px solid black",
                 backgroundColor: "#f5f5f5",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                cursor: controller.canDrawCard(currentPlayerIndex) ? "pointer" : "not-allowed",
+                cursor: controller.canDrawCard(currentPlayer) ? "pointer" : "not-allowed",
                 overflow: "hidden",
                 position: "relative"
               }}
@@ -331,14 +292,13 @@ export default function GamePageV1Mobile() {
                   <div
                     key={card.instanceId}
                     onClick={() => {
-                      const result = controller.selectDiscardPileCard(currentPlayer, selectedCardId, card);
+                      const result = controller.selectDiscardPileCard(card);
 
                       if (!result.success) {
                         alert(`Cannot place card: ${result.reason}`);
                         return;
                       }
 
-                      setSelectedCardId(null);
                       setDiscardPileExpanded(false);
                       rerender();
                     }}
@@ -400,38 +360,18 @@ export default function GamePageV1Mobile() {
                   height: 65,
                   objectFit: "cover",
                   cursor: controller.canPlayHandCard(currentPlayer, card) ? "pointer" : "not-allowed",
-                  border: selectedCardId === card.instanceId ? "2px solid yellow" : "1px solid black",
+                  border: controller.getSelectedCard() === card ? "2px solid yellow" : "1px solid black",
                   opacity: controller.canPlayHandCard(currentPlayer, card) ? 1 : 0.5,
-                  transform: selectedCardId === card.instanceId ? "scale(1.05)" : "scale(1)",
+                  transform: controller.getSelectedCard() === card ? "scale(1.05)" : "scale(1)",
                   transition: "all 0.2s"
                 }}
                 onClick={() => {
-                  if (controller.getPendingAction() === "discardExtraCards") {
-                    const result = controller.discardHandCard(card);
-                    if (!result.success) {
-                      alert(`Cannot discard card: ${result.reason}`);
-                      return;
-                    }
-                    rerender();
-                    return;
-                  }
-
-                  if (selectedCardId === card.instanceId) {
-                    controller.resetTemporaryEffectsIfNeeded();
-                    setSelectedCardId(null);
-                    return;
-                  }
-
-                  const result = controller.playHandCard(currentPlayer, card);
-
-                  if (result.success) {
-                    setSelectedCardId(card.instanceId);
-                  }
-                  else {
+                  // Discards in the discard phase, otherwise selects or deselects the card
+                  const result = controller.clickHandCard(currentPlayer, card);
+                  if (!result.success) {
                     alert(`Cannot play card: ${result.reason}`);
                     return;
                   }
-
                   rerender();
                 }}
               />
@@ -455,29 +395,13 @@ export default function GamePageV1Mobile() {
         ) : (
           <button
             onClick={() => {
-              const endResult = controller.endTurn();
+              // The controller also plays the AI's turns and notifies us as they happen
+              const endResult = controller.finishTurn();
               if (!endResult.success) {
                 alert(endResult.reason);
                 return;
               }
-              setSelectedCardId(null);
-              
-              const executeAITurnsRecursively = () => {
-                const currentGame = controller.getGameState();
-                if (currentGame.currentPlayer.isAI && !controller.isGameOver()) {
-                  setTimeout(() => {
-                    (aiController as AIController).executeAITurn();
-                    controller.endTurn();
-                    rerender();
-                    
-                    executeAITurnsRecursively();
-                  }, 500);
-                } else {
-                  rerender();
-                }
-              };
-              
-              executeAITurnsRecursively();
+              rerender();
             }}
             disabled={controller.hasExtraHandCards(currentPlayer) || !controller.canEndTurn()}
             style={{ padding: "6px 12px", fontSize: "12px" }}
