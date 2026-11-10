@@ -7,8 +7,11 @@ import { ActionCard } from "../model/cards/ActionCard";
 import type { UpgradeCard } from "../model/cards/UpgradeCard";
 import type { CreatureCard } from "../model/cards/CreatureCard";
 import type { CreatureType } from "../model/types/CreatureType";
+import type { TurnType } from "../model/types/TurnType";
+import type { GameResult } from "../model/types/GameResult";
 
 //Types
+export type { TurnType, GameResult };
 
 export type PlayResult =
   | { success: true }
@@ -16,28 +19,9 @@ export type PlayResult =
 
 export type PendingAction = "revealHand" | "stealCard" | "powerOfTea" | "actionRevive" | "creatureRevive" | "upgradeRevive" | "attack" | "discardExtraCards" | null;
 
-export type TurnType = "reinforce" | "attack"
-
-export type GameResult =
-  | { state: "ongoing" }
-  | { state: "win"; winnerId: number }
-  | { state: "loss"; loserId: number }
-  | { state: "tie" };
-
 export class GameController {
   private game: GameBoard;
   private pendingAction: PendingAction = null
-  private movesThisTurn: number = 0;
-  private maxMovesPerTurn: number = 2;
-  private turnType: TurnType = "reinforce";
-  private attackingCard: {
-    card: CreatureCard;
-    row: number;
-    col: number;
-  } | null = null;
-  private hasDrawn: boolean = false;
-  private gameResult: GameResult = { state: "ongoing" };
-  private allowExtraAttack: boolean = false;
 
   constructor(
     cardDefs: Record<string, CardData>,
@@ -53,9 +37,6 @@ export class GameController {
 
     // Initialize the game: shuffle and deal starting hands
     this.initializeGame();
-    
-    // Set moves for first turn (1 move)
-    this.updateMaxMovesPerTurn();
   }
 
   /**
@@ -65,14 +46,7 @@ export class GameController {
   static fromBoard(board: GameBoard): GameController {
     const controller = new GameController({}, {});
     controller.game = board;
-    controller.updateMaxMovesPerTurn();
     return controller;
-  }
-
-  private updateMaxMovesPerTurn(): void {
-    // First turn for each player has 1 move, subsequent turns have 2 moves
-    const currentPlayer = this.game.currentPlayer;
-    this.maxMovesPerTurn = currentPlayer.turnCount === 0 ? 1 : 2;
   }
 
   private initializeGame(): void {
@@ -137,29 +111,25 @@ export class GameController {
 
   // Move logic
   getMovesLeft(): number {
-    return this.maxMovesPerTurn - this.movesThisTurn;
+    return this.game.movesLeft;
   }
 
   getMaxMoves(): number {
-    return this.maxMovesPerTurn;
+    return this.game.maxMovesPerTurn;
   }
 
   //turn type logic
   getTurnType(): TurnType {
-    return this.turnType;
-  }
-
-  setTurnType(turnType: TurnType) {
-    this.turnType = turnType;
+    return this.game.turn.turnType;
   }
 
   //game result logic suite
   getGameResult(): GameResult {
-    return this.gameResult;
+    return this.game.result;
   }
 
   isGameOver(): boolean {
-    return this.gameResult.state !== "ongoing";
+    return this.game.isGameOver;
   }
 
   hasExtraHandCards(player: Player): boolean {
@@ -224,10 +194,10 @@ export class GameController {
 
   private checkLossCondition(player: Player): boolean {
     if (!this.playerHasCreatures(player)) {
-      this.gameResult = {
+      this.game.endGame({
         state: "loss",
         loserId: player.id
-      };
+      });
       return true;
     }
     return false;
@@ -242,7 +212,7 @@ export class GameController {
     );
 
     if (noCardsToDraw && sameCreatureType && noPlayableHands) {
-      this.gameResult = { state: "tie" };
+      this.game.endGame({ state: "tie" });
       return true;
     }
 
@@ -259,7 +229,7 @@ export class GameController {
 
     card.facedUp = false;
     player.addToHand(card);
-    this.hasDrawn = true;
+    this.game.turn.markDrawn();
   }
 
   /**
@@ -269,7 +239,7 @@ export class GameController {
   canDrawCard(playerIndex: number): boolean {
     if (this.isGameOver()) return false;
     const player = this.game.players[playerIndex];
-    return !this.hasDrawn &&
+    return !this.game.turn.hasDrawn &&
       player === this.game.currentPlayer &&
       this.game.deck.size > 0 &&
       player.turnCount !== 0 &&
@@ -290,7 +260,7 @@ export class GameController {
   }
 
   private canMakeMove(): boolean {
-    return !this.isGameOver() && !this.mustDrawFirst() && this.movesThisTurn < this.maxMovesPerTurn;
+    return !this.isGameOver() && !this.mustDrawFirst() && this.game.movesLeft > 0;
   }
 
   // Play card logic suite for field (REINFORCE ONLY)
@@ -338,7 +308,7 @@ playCard(
   }
 
   if (result.success) {
-    this.movesThisTurn += 1;
+    this.game.turn.useMove();
   }
 
   return result;
@@ -367,20 +337,21 @@ playCard(
       return { success: false, reason: "Attacks must be first move" };
     }
 
-    this.attackingCard = {
+    this.game.turn.beginAttack({
       card: creature,
       row,
       col
-    };
+    });
 
-    this.turnType = "attack";
     this.pendingAction = "attack";
 
     return { success: true };
   }
 
   resolveAttack(row: number, col: number): PlayResult {
-    if (!this.attackingCard) {
+    const turn = this.game.turn;
+    const attacking = turn.attackingCard;
+    if (!attacking) {
       return { success: false, reason: "No attack started" };
     }
 
@@ -396,26 +367,21 @@ playCard(
 
     this.executeAttack(
       opponent,
-      this.attackingCard.card,
+      attacking.card,
+      attacking.row,
       row,
       col
     );
 
     // cleanup
-    const wasMatchedCatAttack = this.attackingCard?.card.matched && this.attackingCard?.card.creatureType === "cat";
-    this.attackingCard = null;
+    const wasMatchedCatAttack = attacking.card.matched && attacking.card.creatureType === "cat";
     this.pendingAction = null;
-    
+
     // Always consume the turn
-    this.movesThisTurn = this.maxMovesPerTurn;
-    
-    // For matched cats, allow them to attack again
-    if (wasMatchedCatAttack) {
-      this.allowExtraAttack = true;
-      // Keep turnType as "attack" so player can click the cat again
-    } else {
-      this.allowExtraAttack = false;
-    }
+    turn.useAllMoves(this.game.maxMovesPerTurn);
+
+    // A matched Cat may attack again. turnType stays "attack" so the player can click the cat again.
+    turn.finishAttack(wasMatchedCatAttack);
 
     return { success: true };
   }
@@ -423,6 +389,7 @@ playCard(
   private executeAttack(
   opponent: Player,
   attacker: CreatureCard,
+  attackerRow: number,
   targetRow: number,
   targetCol: number
   ): void {
@@ -441,7 +408,6 @@ playCard(
     const defenderWins = rules[defender.creatureType] === attacker.creatureType;
 
     const currentPlayer = this.game.currentPlayer;
-    const attackerRow = this.attackingCard!.row;
 
     if (attackerWins || (attacker.matched && attacker.creatureType === "dog" && defender.creatureType === "dog")) {
       if (!this.checkUpgrades(currentPlayer, attackerRow, opponent, targetRow)) {
@@ -701,8 +667,9 @@ playCard(
       return false;
     }
 
-    // Allow first attack (movesThisTurn === 0) or matched cat extra attack
-    if (this.movesThisTurn === 0 || (this.allowExtraAttack && creature.matched && (creature as CreatureCard).creatureType === "cat")) {
+    // Allow first attack (no moves used yet) or matched cat extra attack
+    const turn = this.game.turn;
+    if (turn.movesThisTurn === 0 || (turn.allowExtraAttack && creature.matched && creature.creatureType === "cat")) {
       return true;
     }
     
@@ -888,7 +855,7 @@ playCard(
         this.resetTemporaryEffectsIfNeeded();
         const result = this.resolveSteal(player, selectedCardId, card);
         if (result.success) {
-          this.movesThisTurn += 1;
+          this.game.turn.useMove();
         }
         return result;
       }
@@ -950,7 +917,7 @@ playCard(
         // Remove card from discard pile
         const result = this.resolveRevive(player, selectedCardId, card);
         if (result.success) {
-          this.movesThisTurn += 1;
+          this.game.turn.useMove();
         }
         return result;
       }
@@ -1037,7 +1004,7 @@ playCard(
       }
 
       //Increase move counter
-      this.movesThisTurn += 1;
+      this.game.turn.useMove();
     }
   }
 
@@ -1050,29 +1017,17 @@ playCard(
       return { success: false, reason: "You must draw first" };
     }
 
-    const currentPlayer = this.game.currentPlayer;
-
-    // Increment current player's turn count for next turn
-    currentPlayer.turnCount++;
-
-    // Clear temporary effects first: clearing a Messy Dorm reveal charges a move,
-    // and that charge must not carry over into the next player's turn.
+    // Clear temporary effects first: clearing a Messy Dorm reveal charges a move to
+    // this turn, and nextTurn() below then resets the turn state for the next player.
     this.resetTemporaryEffectsIfNeeded();
 
-    this.movesThisTurn = 0;
-    this.turnType = "reinforce";
-    this.hasDrawn = false;
-    this.allowExtraAttack = false;
-
     // LOSS CHECK
-    if (this.checkLossCondition(currentPlayer)) {
+    if (this.checkLossCondition(this.game.currentPlayer)) {
       return { success: true };
     }
 
+    // Counts the finished turn, passes play on, and resets the turn state
     this.game.nextTurn();
-
-    // Update max moves for the new turn
-    this.updateMaxMovesPerTurn();
 
     this.checkTieCondition();
     return { success: true };
