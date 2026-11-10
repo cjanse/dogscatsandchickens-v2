@@ -21,6 +21,11 @@ npx vitest run src/tests/game/Player.test.ts   # run a single file
 
 **Windows gotcha:** if the shell's working directory uses a lowercase drive letter (`c:\...`, which VS Code often does), Vitest reports **"No test suite found"** for every file. Run it from `C:\...` instead. In PowerShell: `Set-Location "C:\Users\Carter\programming\dogscatsandchickens-v2"; npx vitest run`.
 
+## Git
+
+- The default branch is **`master`**, not `main`. The remote is named **`dogscatsandchickens-v2`**, not `origin`: `git push dogscatsandchickens-v2 <branch>`.
+- The `gh` CLI isn't installed. Open PRs on GitHub, or merge locally.
+
 ## Architecture (MVC)
 
 ```
@@ -62,7 +67,7 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
   - The second click goes to `playCard()` for the field, `interactWithOpponentCard()` for the opponent's hand, or `selectDiscardPileCard()` for the discard pile.
 - Attacks: `startAttack(row, col)`, then `resolveAttack(targetRow, targetCol)`. An attack uses up the whole turn.
 - Game actions return `PlayResult` (`{ success: true }` or `{ success: false, reason }`). Each `canX` validator has a matching `X` action. Views use the validators for highlighting.
-- Views keep the controller in a `useRef` and call a `forceUpdate` counter after every mutation, because nothing notifies them of state changes.
+- Views hold the controller in a lazy `useState` initializer and call a `forceUpdate` counter after every mutation, because nothing notifies them of state changes.
 - The AI turn loop currently runs in the view's End Turn handler (`setTimeout`, then `executeAITurn()`, then `endTurn()`).
 
 ## Conventions
@@ -81,11 +86,11 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 Work through these in order: bugs, then MVC cleanup, then missing rules. Add a test for every bug fix so the MVC refactor has something to check against. Tick items off here as they are done.
 
 ### 0. Housekeeping
-- [ ] Get `npm run build` passing. Remove unused variables and parameters, and either remove `GamePage.tsx` or fix its null check.
-- [ ] Remove the `(card as any).front` / `.back` casts in the views. `Card` already has those fields.
-- [ ] Rewrite the 3 outdated tests in `GameController.test.ts`. They predate the opening deal and the loss check in `endTurn`.
-- [ ] Get `npm run lint` passing.
-- [ ] Update the README folder structure. Images now live in `public/assets/v1/cards/`.
+- [x] Get `npm run build` passing. (Unused parameters on public methods are prefixed with `_` for now. `GamePage.tsx` was renamed to `GamePageV1Diagnostics.tsx`.)
+- [x] Remove the `(card as any).front` / `.back` casts in the views. `Card` already has those fields.
+- [x] Rewrite the 3 outdated tests in `GameController.test.ts`. They predate the opening deal and the loss check in `endTurn`. Tests now build state with `createTestController()` in `src/tests/controller/helpers.ts` (wraps `GameController.fromBoard`).
+- [x] Get `npm run lint` passing. (`_`-prefixed unused args are allowed via eslint config; views create the controller with a lazy `useState` initializer instead of `useRef`.)
+- [x] Update the README folder structure. Images now live in `public/assets/v1/cards/`.
 
 ### 1. Bugs
 - [ ] **Messy Dorm + End Turn:** `endTurn` resets `movesThisTurn` to 0, then `resetTemporaryEffectsIfNeeded` → `clearRevealIfNeeded` adds 1 back. The next player starts with a move already used and can't draw or attack.
@@ -99,7 +104,7 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 
 ### 2. MVC cleanup
 - [ ] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`.
-- [ ] Move the game rules (battles, upgrade resolution, matching abilities) out of `GameController` into model services or classes. The controller should only check moves and coordinate them. Either implement or delete the empty `Card.canPlay`/`onPlay` stubs.
+- [ ] Move the game rules (battles, upgrade resolution, matching abilities) out of `GameController` into model services or classes. The controller should only check moves and coordinate them. Either implement or delete the empty `Card.canPlay`/`onPlay` stubs. Then remove the unused `_` parameters and the `argsIgnorePattern` exception in `eslint.config.js`.
 - [ ] Stop exposing editable model internals:
   - Make `getGameState()` actually read-only, or return a view model.
   - Replace direct `hand.push`, `discardPile.splice` and `row[i] = null` with model methods.

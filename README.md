@@ -63,16 +63,19 @@ Tests cover the model layer:
 ```test
 src/
  ├─ assets/
- │   ├─ v1/
- │   │   ├─ cards.json
- │   │   ├─ deck.json
- │   │   └─ images/*.jpg
+ │   └─ v1/
+ │       ├─ cards.json
+ │       └─ deck.json
+ ├─ app/              # Asset loading (cards.json + deck.json -> CardData)
  ├─ model/
  │   ├─ cards/        # Card classes + CardFactory
  │   ├─ deck/         # Deck + DeckFactory
  │   ├─ game/         # GameBoard + Player
  │   └─ types/        # TypeScript type definitions
+ ├─ controller/       # GameController (rules, turn state) + AIController
  └─ tests/            # Unit tests
+public/
+ └─ assets/v1/cards/*.jpg   # Card images, served at /assets/v1/cards/<file>
 ```
 
 ## Notes 
