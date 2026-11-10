@@ -41,13 +41,14 @@ src/
     AIController.ts     Picks random valid moves through GameController's public can*/play* API. GameController creates it and runs it from finishTurn()
   app/loadV1Assets.ts   Turns cards.json and deck.json into CardData records (no image info)
   app/cardImages.ts     View-side image lookup: cardFrontUrl(card) by id, cardBackUrl(card) by type
-  app/fieldRows.ts      fieldRowsWithPlaceholders(field): adds the empty rows the UI draws above and below the field
+  app/fieldRows.ts      fieldRowsWithPlaceholders(field): adds the empty rows the UI draws above and below the field. visualCells/columnsInUse: which cells a row shows, in screen order, with their model column
+  app/useGameController.ts  The views' only way in: creates the controller, re-renders on its notifications, wraps actions and keeps the last failure as `message`
+  view/components/      Shared view pieces (FieldCell, CardImage, DeckPile, DiscardPile, TurnControls, MessageBanner, GameOverScreen). Game behavior inside, size and style from props
   assets/v1/            cards.json (card definitions) and deck.json (copies per card id; 36 cards total)
   App.tsx               Landing page, then picks a game view
   GamePageV1.tsx            Desktop view with card images (the main view)
   GamePageV1Mobile.tsx      Vertical layout for phones
   GamePageV1Diagnostics.tsx Text-only debug view
-  GamePage.tsx              Old original view, no longer imported (dead code)
   tests/                Vitest specs, mirroring model/ and controller/
 public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 ```
@@ -60,7 +61,7 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
   - cols 2–3 hold upgrades. Col 3 can only be filled once col 2 is filled, and **col 3 triggers first** (it is the top of the stack).
   - Take cards off the field with `Player.removeFromField(row, col)`, never `row[i] = null`. It resets `facedUp` and `matched`, so the card is clean whether it goes to the hand or the discard pile.
   - `Player.field` only holds rows that have cards in them (it starts as `[]`). To play a creature into a new row, pass `row = -1` (new row above all rows) or `row = field.length` (new row below); `Player.playToField` opens the row. For an empty field only `row = 0` is valid. `Player.removeRow` always deletes the row. The empty "drop here" rows the UI shows come from `fieldRowsWithPlaceholders` in `src/app/fieldRows.ts`, which gives each row its model index (-1 and `field.length` for the placeholders).
-- **Visibility:** `Card.facedUp` means the card is permanently revealed on the field. Temporary reveals, such as Messy Dorm, live in `GameBoard.temporaryEffects`. Views must call `controller.isCardVisibleToPlayer(card, owner)` (`owner` is the `PlayerView` whose hand or field holds the card) and must not read `facedUp` directly.
+- **Visibility:** `Card.facedUp` means the card is permanently revealed on the field. Temporary reveals, such as Messy Dorm, live in `GameBoard.temporaryEffects`. Views must call `isCardVisibleToPlayer(card, owner)` (`owner` is the `PlayerView` whose hand or field holds the card) and `isFaceUp(card)` (to dim your own face-down cards), and must not read `facedUp` directly. `CardImage` does both.
 - **Card images:** the model has no image info. Views use `cardFrontUrl(card)` (looked up by `id` in cards.json) and `cardBackUrl(card)` (depends on the card type: `creature.jpg`, `upgrade.jpg`, `action.jpg`) from `src/app/cardImages.ts`.
 
 ### Controller flow
@@ -73,8 +74,10 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
   - The opponent's hand → `interactWithOpponentCard(player, card)`, and the discard pile → `selectDiscardPileCard(card)`. Both act for the selected action card, and the controller discards it when the action resolves.
 - Lower-level actions the AI and tests use: `playCard(player, card, row, col)` and `canPlayCard` (creature and upgrade placement only), `startAttack(row, col)` then `resolveAttack(targetRow, targetCol)` (an attack uses up the whole turn), `drawCard(player)`. Methods that can only act for the current player take no player argument.
 - Game actions return `PlayResult` (`{ success: true }` or `{ success: false, reason }`). Each `canX` validator has a matching `X` action. Views use the validators for highlighting.
-- The AI's turns run in the controller. The End Turn button calls `finishTurn()`: it calls `endTurn()` (which stays synchronous) and, if an AI player is next, schedules `AIController.executeAITurn()` plus `endTurn()` after `aiTurnDelayMs` (500 ms), repeating until a human is up or the game ends. `subscribe(listener)` is called after each of those steps, and `dispose()` cancels a pending AI turn. Views subscribe in a `useEffect` and call `dispose()` on cleanup.
-- Views hold the controller in a lazy `useState` initializer and still call a `forceUpdate` counter after their own actions, because only AI turns and `finishTurn` notify subscribers.
+- The AI's turns run in the controller. The End Turn button calls `finishTurn()`: it calls `endTurn()` (which stays synchronous) and, if an AI player is next, schedules `AIController.executeAITurn()` plus `endTurn()` after `aiTurnDelayMs` (500 ms), repeating until a human is up or the game ends. `dispose()` cancels a pending AI turn.
+- **Notifications:** every public controller method that can change state runs inside `withNotify`, which calls the `subscribe` listeners and bumps `getVersion()` once, also when the action fails. Nested calls (`clickField` → `playCard`) and a whole AI turn notify only once. Queries (`can*`, `is*`, `get*`) never notify. A new mutator must be wrapped too, or views won't re-render after it.
+- **Views:** each view calls `useGameController()` (`src/app/useGameController.ts`). It builds the controller once, re-renders through `useSyncExternalStore(subscribe, getVersion)`, and calls `dispose()` on unmount. Views get `queries` (the controller typed down to its read-only methods, `GameQueries`) and act only through the hook's wrappers (`clickField`, `clickHandCard`, `drawCard`, `finishTurn`, ...), which put a failed action's `reason` in `message` (shown by `MessageBanner`) and clear it on the next success. No `alert()`, no `forceUpdate`. A new query must be added to `GameQueries` before views can use it.
+- **No `React.memo`** on components that take `controls`, the game, players or cards: they are the same mutable objects on every render, so a memoized component would never update.
 
 ## Conventions
 
@@ -116,8 +119,8 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] Make controller method signatures consistent: indexes vs `Player`/`Card` objects, and no raw `selectedCardId` coming from the UI. (Players are `PlayerView`s and cards are `Card`s everywhere. The controller owns the selected card, so `interactWithOpponentCard` and `selectDiscardPileCard` no longer take an id. `drawCard` returns a `PlayResult`.)
 - [x] Move the AI turn loop out of the views' End Turn handlers and into the controller. (`finishTurn()`, `subscribe()` and `dispose()`.)
 - [x] Move the "start an attack or place a card?" click logic out of the views into the controller. (`clickField`, `canClickField` and `clickHandCard`. `canPlayCard` is now creature/upgrade placement only.)
-- [ ] Remove the copied logic between `GamePageV1`, `GamePageV1Mobile` and `GamePageV1Diagnostics`. Use a shared `useGameController` hook that re-renders when the controller notifies it, so views don't need `forceUpdate`. Views should only do layout.
-- [ ] Replace `alert()` with in-UI messages, and remove `console.log` from the controller.
+- [x] Remove the copied logic between `GamePageV1`, `GamePageV1Mobile` and `GamePageV1Diagnostics`. Use a shared `useGameController` hook that re-renders when the controller notifies it, so views don't need `forceUpdate`. Views should only do layout. (`src/app/useGameController.ts` plus `src/view/components/`. Mobile now shows your own face-down field cards dimmed instead of as card backs, like desktop.)
+- [x] Replace `alert()` with in-UI messages, and remove `console.log` from the controller. (`MessageBanner`; the controller had no `console.log` left.)
 
 ### 3. Missing rules
 - [ ] **Win condition:** the opponent has no creatures on the field or in their hand. A `win` result is never set yet, and the end screen only shows a loss.

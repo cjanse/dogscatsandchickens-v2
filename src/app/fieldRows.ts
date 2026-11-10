@@ -29,3 +29,27 @@ export function fieldRowsWithPlaceholders(field: FieldView): FieldRowView[] {
     placeholder(field.length),
   ];
 }
+
+/**
+ * How many columns a row needs on screen: 1 for an empty row (somewhere to drop a creature),
+ * 3 for a creature with no upgrade (creature, twin slot, first upgrade slot), 4 once it has an upgrade.
+ */
+export function columnsInUse(cells: readonly (Card | null)[]): number {
+  if (!cells.some(card => card?.type === "creature")) return 1;
+  return cells.some(card => card?.type === "upgrade") ? 4 : 3;
+}
+
+export interface VisualCell {
+  cell: Card | null;
+  /** The column index to give the controller. */
+  modelCol: number;
+}
+
+/**
+ * The first `colsToShow` cells of a row in screen order, each with its model column. The opponent's
+ * field is drawn mirrored, so their cells come out in reverse.
+ */
+export function visualCells(cells: readonly (Card | null)[], isOpponent: boolean, colsToShow = FIELD_COLS): VisualCell[] {
+  const shown = cells.slice(0, colsToShow).map((cell, modelCol) => ({ cell, modelCol }));
+  return isOpponent ? shown.reverse() : shown;
+}
