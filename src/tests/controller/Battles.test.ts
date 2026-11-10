@@ -158,7 +158,7 @@ describe("matching abilities", () => {
     });
     players[1].field[0][2] = opponentUpgrade;
 
-    expect(controller.playCard(0, top.instanceId, 0, 1).success).toBe(true);
+    expect(controller.playCard(players[0], top, 0, 1).success).toBe(true);
 
     expect(bottom.matched).toBe(true);
     expect(top.matched).toBe(true);

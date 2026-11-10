@@ -13,6 +13,7 @@ import type { GameView, PlayerView } from "../model/game/views";
 import { resolveBattle } from "../model/rules/Battle";
 import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
 import { canPlaceCreature, canPlaceUpgrade, hasUpgradeSlot } from "../model/rules/Placement";
+import { AIController } from "./AIController";
 
 //Types
 export type { TurnType, GameResult };
@@ -23,9 +24,24 @@ export type PlayResult =
 
 export type PendingAction = "revealHand" | "stealCard" | "powerOfTea" | "actionRevive" | "creatureRevive" | "upgradeRevive" | "attack" | "discardExtraCards" | null;
 
+/** How long the AI "thinks" before it plays its turn, so the human can follow what happened. */
+const DEFAULT_AI_TURN_DELAY_MS = 500;
+
 export class GameController {
   private game: GameBoard;
-  private pendingAction: PendingAction = null
+  private pendingAction: PendingAction = null;
+  /**
+   * The hand card the current player has picked up this turn. For an action card it is also the card
+   * behind `pendingAction`: the controller discards it itself once the action resolves, so the UI
+   * never has to hand an id back.
+   */
+  private selectedCard: Card | null = null;
+
+  private listeners = new Set<() => void>();
+  private ai: AIController | null = null;
+  private aiTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Pause before each AI turn. Tests set this to 0 or use fake timers. */
+  aiTurnDelayMs = DEFAULT_AI_TURN_DELAY_MS;
 
   constructor(
     cardDefs: Record<string, CardData>,
@@ -118,6 +134,40 @@ export class GameController {
 
   getPendingAction(): PendingAction {
     return this.pendingAction;
+  }
+
+  /**
+   * The card the UI should highlight: the attacker while an attack is pending, otherwise the
+   * hand card the player has picked up.
+   */
+  getSelectedCard(): Card | null {
+    if (this.pendingAction === "attack") {
+      return this.game.turn.attackingCard?.card ?? null;
+    }
+    return this.selectedCard;
+  }
+
+  /**
+   * Calls `listener` whenever the controller changes state on its own (an AI turn, or the end of a
+   * turn through `finishTurn`). Returns an unsubscribe function.
+   */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach(listener => listener());
+  }
+
+  /** Cancels a pending AI turn. Call it when the view goes away. The controller stays usable. */
+  dispose(): void {
+    if (this.aiTimer !== null) {
+      clearTimeout(this.aiTimer);
+      this.aiTimer = null;
+    }
   }
 
   // Move logic
@@ -232,24 +282,27 @@ export class GameController {
   //end game result logic suite
 
   /** Player actions */
-  drawCard(playerIndex: number) {
-    if (!this.canDrawCard(playerIndex)) return;
-    const player = this.game.players[playerIndex];
+  drawCard(playerView: PlayerView): PlayResult {
+    if (!this.canDrawCard(playerView)) {
+      return { success: false, reason: "You can't draw a card right now" };
+    }
+    const player = this.modelPlayer(playerView);
     const card = this.game.deck.draw();
-    if (!card) return;
+    if (!card) return { success: false, reason: "The deck is empty" };
 
     card.facedUp = false;
     player.addToHand(card);
     this.game.turn.markDrawn();
+    return { success: true };
   }
 
   /**
    * A draw costs no move. It isn't available on a first turn, with an empty deck,
    * or (during a recovery turn) until the player has a creature on the field.
    */
-  canDrawCard(playerIndex: number): boolean {
+  canDrawCard(playerView: PlayerView): boolean {
     if (this.isGameOver()) return false;
-    const player = this.game.players[playerIndex];
+    const player = this.modelPlayer(playerView);
     return !this.game.turn.hasDrawn &&
       player === this.game.currentPlayer &&
       this.game.deck.size > 0 &&
@@ -263,7 +316,7 @@ export class GameController {
 
   /** True while the current player owes a draw. No move or end of turn is allowed until they draw. */
   mustDrawFirst(): boolean {
-    return this.canDrawCard(this.game.currentPlayerIndex);
+    return this.canDrawCard(this.game.currentPlayer);
   }
 
   canEndTurn(): boolean {
@@ -274,56 +327,43 @@ export class GameController {
     return !this.isGameOver() && !this.mustDrawFirst() && this.game.movesLeft > 0;
   }
 
-  // Play card logic suite for field (REINFORCE ONLY)
-playCard(
-  playerIndex: number,
-  cardInstanceId: string,
-  row: number,
-  col: number
-): PlayResult {
-  if (!this.canPlayCard(playerIndex, cardInstanceId, row, col)) {
-    return { success: false, reason: "Invalid card placement" };
+  // Play card logic suite for field (REINFORCE ONLY: creatures and upgrades)
+  /**
+   * Places a creature or upgrade from the current player's hand. `player` owns the field being
+   * placed on. Action cards are resolved through `selectHandCard`, `clickField` and friends.
+   */
+  playCard(playerView: PlayerView, card: Card, row: number, col: number): PlayResult {
+    if (!this.canPlayCard(playerView, card, row, col)) {
+      return { success: false, reason: "Invalid card placement" };
+    }
+
+    const player = this.modelPlayer(playerView);
+
+    // Clear temp effects BEFORE resolving
+    this.resetTemporaryEffectsIfNeeded();
+
+    let result: PlayResult;
+
+    switch (card.type) {
+      case "creature":
+        result = this.playCreatureCard(player, card as CreatureCard, row, col);
+        break;
+
+      case "upgrade":
+        result = this.playUpgradeCard(player, card as UpgradeCard, row, col);
+        break;
+
+      default:
+        return { success: false, reason: "Only creatures and upgrades are placed on the field" };
+    }
+
+    if (result.success) {
+      this.game.turn.useMove();
+      if (this.selectedCard === card) this.selectedCard = null;
+    }
+
+    return result;
   }
-
-  const player = this.game.players[playerIndex];
-
-  // Card must come from current player's hand
-  const card = this.game.currentPlayer.hand.find(
-    c => c.instanceId === cardInstanceId
-  );
-
-  if (!card) {
-    return { success: false, reason: "Card not found in hand" };
-  }
-
-  // Clear temp effects BEFORE resolving
-  this.resetTemporaryEffectsIfNeeded();
-
-  let result: PlayResult;
-
-  switch (card.type) {
-    case "creature":
-      result = this.playCreatureCard(player, card as CreatureCard, row, col);
-      break;
-
-    case "upgrade":
-      result = this.playUpgradeCard(player, card as UpgradeCard, row, col);
-      break;
-
-    case "action":
-      result = this.playActionCard(card as ActionCard, row, col);
-      break;
-
-    default:
-      return { success: false, reason: "Unknown card type" };
-  }
-
-  if (result.success) {
-    this.game.turn.useMove();
-  }
-
-  return result;
-}
 
   startAttack(row: number, col: number): PlayResult {
     const card = this.game.currentPlayer.field[row]?.[col];
@@ -415,86 +455,60 @@ playCard(
     return { success: true };
   }
 
-  private playActionCard(card: ActionCard, row: number, col: number): PlayResult {
-    switch (card.actionType) {
-      case "powerOfTea":
-        return this.resolvePowerOfTea(card, row, col);
+  /** Power of Tea: reveals the clicked card on the opponent's field and discards the Tea card. */
+  private resolvePowerOfTea(owner: PlayerView, row: number, col: number): PlayResult {
+    const tea = this.selectedCard;
+    if (!tea || !this.canUsePowerOfTea(owner, row, col)) {
+      return { success: false, reason: "Invalid Power of Tea target" };
     }
-    return { success: false, reason: "Action card not supported" };
-  }
 
-  private resolvePowerOfTea(card: ActionCard, row: number, col: number): PlayResult {
+    // Clear temp effects BEFORE resolving
+    this.resetTemporaryEffectsIfNeeded();
+
     // Reveal opponent's card
-    const opponent = this.game.opponentOf(this.game.currentPlayer);
-    const targetCard = opponent.field[row]?.[col];
+    const targetCard = this.modelPlayer(owner).field[row]?.[col];
     if (targetCard) {
       targetCard.facedUp = true;
     }
 
     // Discard action card
-    this.game.discard(this.game.currentPlayer.removeFromHand(card.instanceId) as Card);
+    this.game.discard(this.game.currentPlayer.removeFromHand(tea.instanceId) as Card);
+    this.selectedCard = null;
+    this.game.turn.useMove();
 
     return { success: true };
   }
   //End Play card logic suite
 
   // Begin can Play Card Validation Suite
-  canPlayCard(
-  playerIndex: number,
-  cardId: string | null,
-  row: number,
-  col: number
-  ): boolean {
+  /** Reinforce only: can this creature or upgrade go on `player`'s field at (row, col)? */
+  canPlayCard(playerView: PlayerView, card: Card, row: number, col: number): boolean {
     if (this.isGameOver()) return false;
-    const player = this.game.players[playerIndex];
+    const player = this.modelPlayer(playerView);
+    const current = this.game.currentPlayer;
 
-    // ATTACK FLOW
-    if (this.pendingAction === "attack") {
-      // selecting target
-      return player !== this.game.currentPlayer &&
-            !!player.field[row]?.[col] && player.field[row]?.[col]?.type === "creature";
-    }
-
-    // START ATTACK
-    if (
-      this.pendingAction === null &&
-      player === this.game.currentPlayer &&
-      this.canAttackWith(row, col)
-    ) {
-      return true;
-    }
-
-    // REINFORCE FLOW
-    const card = this.game.currentPlayer.hand.find(c => c.instanceId === cardId);
-    if (!card) return false;
+    // The card must come from the current player's hand
+    if (!current.hand.includes(card)) return false;
     // Moves left, draw-first and first-turn rules
-    if (!this.canPlayHandCard(this.game.currentPlayer, card)) return false;
+    if (!this.canPlayHandCard(current, card)) return false;
 
     switch (card.type) {
       case "creature":
-        return player === this.game.currentPlayer && canPlaceCreature(player, card, row, col);
+        return player === current && canPlaceCreature(player, card, row, col);
       case "upgrade":
-        return player === this.game.currentPlayer && canPlaceUpgrade(player, row, col);
-      case "action":
-        return this.canUseAction(player, card as ActionCard, row, col);
+        return player === current && canPlaceUpgrade(player, row, col);
     }
 
     return false;
   }
 
-
-  canUseAction(
-    player: PlayerView,
-    card: ActionCard,
-    row: number,
-    col: number
-  ): boolean {
-    switch(card.actionType) {
-      case "powerOfTea":
-        // Power of Tea targets opponent's field
-        return (this.pendingAction == "powerOfTea" && this.game.currentPlayer.id !== player.id && !!player.field[row]?.[col])
-    }
-    return false;
+  /** Power of Tea targets a card on the opponent's field while a Tea card is waiting for its target. */
+  private canUsePowerOfTea(owner: PlayerView, row: number, col: number): boolean {
+    return this.pendingAction === "powerOfTea" &&
+      this.selectedCard !== null &&
+      this.canPlayHandCard(this.game.currentPlayer, this.selectedCard) &&
+      this.game.currentPlayer.id !== owner.id &&
+      !!owner.field[row]?.[col];
   }
 
   canAttackWith(row: number, col: number): boolean {
@@ -521,27 +535,116 @@ playCard(
 
   // End Play Card Validation Suite
 
+  // Click routing for the UI: what a click on a field cell means right now
+  /**
+   * Whether clicking (row, col) on `owner`'s field does something. The views use it to highlight cells.
+   * Mirrors `clickField`.
+   */
+  canClickField(owner: PlayerView, row: number, col: number): boolean {
+    if (this.isGameOver()) return false;
+    const current = this.game.currentPlayer;
+
+    // An attack is waiting for its target: only the opponent's creatures can be clicked
+    if (this.pendingAction === "attack") {
+      return owner.id !== current.id && owner.field[row]?.[col]?.type === "creature";
+    }
+
+    // A Power of Tea card is waiting for its target
+    if (this.pendingAction === "powerOfTea") {
+      return this.canUsePowerOfTea(owner, row, col);
+    }
+
+    // Nothing selected: the only thing a click can do is start an attack
+    if (this.selectedCard === null) {
+      return this.pendingAction === null && owner.id === current.id && this.canAttackWith(row, col);
+    }
+
+    // A creature or upgrade is selected: place it
+    return this.canPlayCard(owner, this.selectedCard, row, col);
+  }
+
+  /**
+   * One entry point for a click on a field cell. Depending on the state it resolves an attack, starts an
+   * attack (the first move of a turn, or a matched Cat attacking again), resolves Power of Tea,
+   * or places the selected card. Does nothing, and returns a failure, if `canClickField` is false.
+   */
+  clickField(owner: PlayerView, row: number, col: number): PlayResult {
+    if (!this.canClickField(owner, row, col)) {
+      return { success: false, reason: "Nothing to do here" };
+    }
+
+    if (this.pendingAction === "attack") {
+      return this.resolveAttack(row, col);
+    }
+
+    if (this.pendingAction === "powerOfTea") {
+      return this.resolvePowerOfTea(owner, row, col);
+    }
+
+    const card = this.selectedCard;
+    if (card === null) {
+      return this.startAttack(row, col);
+    }
+
+    const result = this.playCard(owner, card, row, col);
+    // The attempt is over whether it worked or not
+    this.selectedCard = null;
+    return result;
+  }
+
   //Play Hand Card Logic suite
-  playHandCard(playerView: PlayerView, card: Card): PlayResult {
+  /**
+   * One entry point for a click on a card in the current player's hand: discards it during the
+   * discard phase, deselects it if it is already selected, and otherwise selects it.
+   */
+  clickHandCard(playerView: PlayerView, card: Card): PlayResult {
+    if (this.pendingAction === "discardExtraCards") {
+      return this.discardHandCard(card);
+    }
+    if (this.selectedCard === card) {
+      this.deselectCard();
+      return { success: true };
+    }
+    return this.selectHandCard(playerView, card);
+  }
+
+  /** Drops the current selection, and with it any temporary effect or pending action it started. */
+  deselectCard(): void {
+    this.resetTemporaryEffectsIfNeeded();
+    this.selectedCard = null;
+  }
+
+  /**
+   * Picks up a card from the player's hand. A creature or upgrade is then placed with `clickField`.
+   * An action card starts its pending action and is discarded by the controller when it resolves.
+   */
+  selectHandCard(playerView: PlayerView, card: Card): PlayResult {
     const player = this.modelPlayer(playerView);
     if (!this.canPlayHandCard(player, card)) {
       return { success: false, reason: "Cannot play this card" };
     }
     this.resetTemporaryEffectsIfNeeded();
+
+    let result: PlayResult;
     switch (card.type) {
       case "creature":
-        return {success: true};
       case "upgrade":
-        return {success: true};
+        result = { success: true };
+        break;
       case "action":
-        return this.playHandActionCard(player, card as ActionCard);
+        result = this.playHandActionCard(player, card as ActionCard);
+        break;
+      default:
+        result = { success: false, reason: "Unknown card type" };
     }
-    
-    return { success: false, reason: "Unknown card type" };
+
+    if (result.success) {
+      this.selectedCard = card;
+    }
+    return result;
   }
 
-  playHandActionCard(playerView: PlayerView, card: ActionCard): PlayResult {
-    const player = this.modelPlayer(playerView);
+  private playHandActionCard(player: Player, card: ActionCard): PlayResult {
     if (this.canPlayHandCard(player, card) === false) {
       return { success: false, reason: "Cannot play this card" };
     }
@@ -625,13 +728,23 @@ playCard(
   //End Can Play Hand Card Logic
 
   //Interact with opponent hand
-  interactWithOpponentCard(playerView: PlayerView, selectedCardId: string | null, card: Card): PlayResult {
+  /** The selected hand card that started the pending action, if it is still in the current player's hand. */
+  private actingCard(): Card | null {
+    const card = this.selectedCard;
+    return card && this.game.currentPlayer.hand.includes(card) ? card : null;
+  }
+
+  interactWithOpponentCard(playerView: PlayerView, card: Card): PlayResult {
     const player = this.modelPlayer(playerView);
     if (!this.canInteractWithOpponentCard(player)) {
       return { success: false, reason: "Cannot interact with this card" };
     }
-    if (!selectedCardId) {
+    const acting = this.actingCard();
+    if (!acting) {
       return { success: false, reason: "No card selected" };
+    }
+    if (!player.hand.includes(card)) {
+      return { success: false, reason: "That card is not in the opponent's hand" };
     }
 
     switch (this.pendingAction) {
@@ -642,8 +755,9 @@ playCard(
         }
 
         this.resetTemporaryEffectsIfNeeded();
-        const result = this.resolveSteal(player, selectedCardId, card);
+        const result = this.resolveSteal(player, acting, card);
         if (result.success) {
+          this.selectedCard = null;
           this.game.turn.useMove();
         }
         return result;
@@ -652,7 +766,7 @@ playCard(
     return {success: false, reason: "No interaction performed"};
   }
 
-  private resolveSteal(player: Player, selectedCardId: string, card: Card): PlayResult {
+  private resolveSteal(player: Player, acting: Card, card: Card): PlayResult {
 
     // Filter opponent hand by that type
     const candidates = player.hand.filter(
@@ -675,7 +789,7 @@ playCard(
     // Clear pending state
     this.pendingAction = null;
 
-    this.game.discard(this.game.currentPlayer.removeFromHand(selectedCardId) as Card);
+    this.game.discard(this.game.currentPlayer.removeFromHand(acting.instanceId) as Card);
 
     return { success: true };
   }
@@ -690,8 +804,10 @@ playCard(
   // End can interact with opponent card logic suite
 
   //Interact with Discard pile Logic suite
-  selectDiscardPileCard(player: PlayerView, selectedCardId: string | null, card: Card): PlayResult {
-    if (selectedCardId == null) {
+  /** Always acts for the current player: the revived card goes to their hand. */
+  selectDiscardPileCard(card: Card): PlayResult {
+    const acting = this.actingCard();
+    if (!acting) {
       return { success: false, reason: "No card selected" };
     }
     if (!this.canInteractWithDiscardPileCard(card)) {
@@ -704,8 +820,9 @@ playCard(
       case "upgradeRevive": {
         this.resetTemporaryEffectsIfNeeded();
         // Remove card from discard pile
-        const result = this.resolveRevive(this.modelPlayer(player), selectedCardId, card);
+        const result = this.resolveRevive(acting, card);
         if (result.success) {
+          this.selectedCard = null;
           this.game.turn.useMove();
         }
         return result;
@@ -714,10 +831,10 @@ playCard(
     return {success: false, reason: "No interaction performed"};
   }
 
-  private resolveRevive(player: Player, selectedCardId: string | null, card: Card): PlayResult {
-    player.addToHand(this.game.takeFromDiscard(card) as Card);
+  private resolveRevive(acting: Card, card: Card): PlayResult {
+    this.game.currentPlayer.addToHand(this.game.takeFromDiscard(card) as Card);
     //Discard action card
-    this.game.discard(this.game.currentPlayer.removeFromHand(selectedCardId as string) as Card);
+    this.game.discard(this.game.currentPlayer.removeFromHand(acting.instanceId) as Card);
     return { success: true };
   }
   //End discard pile Logic suite
@@ -740,9 +857,10 @@ playCard(
   //End can interact with Discard pile Logic suite
 
   // Visibility Logic
-  isCardVisibleToPlayer(card: Card, playerIndex: number): boolean {
+  /** Whether the current player can see `card`, which belongs to `owner` (in their hand or on their field). */
+  isCardVisibleToPlayer(card: Card, owner: PlayerView): boolean {
     // Player sees their own cards
-    if (playerIndex === this.game.currentPlayerIndex) {
+    if (owner.id === this.game.currentPlayer.id) {
       return true;
     }
 
@@ -753,11 +871,11 @@ playCard(
     const revealEffect = this.game.temporaryEffects.find(
       e =>
         e.type === "revealHand" &&
-        e.targetPlayerId === this.game.players[playerIndex].id &&
+        e.targetPlayerId === owner.id &&
         e.sourcePlayerId === this.game.currentPlayer.id
     );
 
-    if (revealEffect && this.game.players[playerIndex].hand.includes(card)) {
+    if (revealEffect && owner.hand.includes(card)) {
       return true;
     }
 
@@ -809,6 +927,7 @@ playCard(
     // Clear temporary effects first: clearing a Messy Dorm reveal charges a move to
     // this turn, and nextTurn() below then resets the turn state for the next player.
     this.resetTemporaryEffectsIfNeeded();
+    this.selectedCard = null;
 
     // LOSS CHECK
     if (this.checkLossCondition(this.game.currentPlayer)) {
@@ -820,5 +939,36 @@ playCard(
 
     this.checkTieCondition();
     return { success: true };
+  }
+
+  /**
+   * The End Turn button's entry point. Ends the turn like `endTurn`, then, if the next player is the AI,
+   * plays the AI's turn after `aiTurnDelayMs` and keeps going until a human is up or the game ends.
+   * Listeners are notified after each step. `endTurn` itself stays synchronous.
+   */
+  finishTurn(): PlayResult {
+    const result = this.endTurn();
+    if (result.success) {
+      this.scheduleAITurn();
+    }
+    this.notify();
+    return result;
+  }
+
+  private scheduleAITurn(): void {
+    if (this.aiTimer !== null || this.isGameOver() || !this.game.currentPlayer.isAI) return;
+
+    this.aiTimer = setTimeout(() => {
+      this.aiTimer = null;
+      // The state may have changed while we waited
+      if (this.isGameOver() || !this.game.currentPlayer.isAI) return;
+
+      this.ai ??= new AIController(this);
+      this.ai.executeAITurn();
+      const ended = this.endTurn();
+      this.notify();
+      // If the AI could not end its turn, stop here instead of retrying forever
+      if (ended.success) this.scheduleAITurn();
+    }, this.aiTurnDelayMs);
   }
 }

@@ -1,21 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GameController } from "./controller/GameController";
-import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
 import { fieldRowsWithPlaceholders } from "./app/fieldRows";
 import type { FieldView } from "./model/game/views";
 
 export default function GamePageV1Diagnostics() {
   const [, forceUpdate] = useState(0);
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   // Created once; the controller is a stable mutable object (views call forceUpdate after mutations).
-  const [{ controller, aiController }] = useState(() => {
+  const [controller] = useState(() => {
     const { cardDefs, deckConfig } = loadV1Assets();
     // Set to true to play against AI, false for two human players
     const player2IsAI = true;
-    const controller = new GameController(cardDefs, deckConfig, player2IsAI);
-    return { controller, aiController: new AIController(controller) };
+    return new GameController(cardDefs, deckConfig, player2IsAI);
   });
+
+  // The controller runs the AI's turns itself and tells us when something changed
+  useEffect(() => {
+    const unsubscribe = controller.subscribe(() => forceUpdate((n) => n + 1));
+    return () => {
+      unsubscribe();
+      controller.dispose();
+    };
+  }, [controller]);
 
   const game = controller.getGameState();
 
@@ -61,18 +67,13 @@ export default function GamePageV1Diagnostics() {
                   : visualColIndex;
                 
                 //Determines visibility
-                const isVisible = cell && controller.isCardVisibleToPlayer(cell, isOpponent ? opponentIndex : currentPlayerIndex);
+                const fieldOwner = isOpponent ? opponent : currentPlayer;
+                const isVisible = cell && controller.isCardVisibleToPlayer(cell, fieldOwner);
 
                 //Determines canClick logic
-                const isSelected = selectedCardId !== null;
+                const isSelected = controller.getSelectedCard() !== null;
 
-                const canPlaceHere =
-                  controller.canPlayCard(
-                    isOpponent ? opponentIndex: currentPlayerIndex,
-                    selectedCardId,
-                    modelRowIndex,
-                    modelColIndex
-                  );
+                const canPlaceHere = controller.canClickField(fieldOwner, modelRowIndex, modelColIndex);
 
                 let borderColor = "black";
                 let cursor = "default";
@@ -90,52 +91,9 @@ export default function GamePageV1Diagnostics() {
                     onClick={() => {
                       if (!canPlaceHere) return;
 
-                      // Attack flow
-                      if (controller.getTurnType() === "attack") {
-                        // If clicking on opponent's creature, resolve the attack
-                        if (isOpponent) {
-                          const result = controller.resolveAttack(modelRowIndex, modelColIndex);
-                          if (!result.success) alert(result.reason);
-                          setSelectedCardId(null);
-                          rerender();
-                          return;
-                        } else {
-                          // If clicking on your own creature, start a new attack (for matched cats)
-                          const result = controller.startAttack(modelRowIndex, modelColIndex);
-                          if (result.success) {
-                            setSelectedCardId(
-                              currentPlayer.field[modelRowIndex][modelColIndex]!.instanceId
-                            );
-                          }
-                          rerender();
-                          return;
-                        }
-                      }
-
-                      if (
-                        controller.getMovesLeft() === controller.getMaxMoves() &&
-                        !selectedCardId
-                      ) {
-                        const result = controller.startAttack(modelRowIndex, modelColIndex);
-                        if (result.success) {
-                          setSelectedCardId(
-                            currentPlayer.field[modelRowIndex][modelColIndex]!.instanceId
-                          );
-                        }
-                        rerender();
-                        return;
-                      }
-
-                      // Reinforce
-                      const result = controller.playCard(
-                        isOpponent ? opponentIndex : currentPlayerIndex,
-                        selectedCardId as string,
-                        modelRowIndex,
-                        modelColIndex
-                      );
-
+                      // The controller decides whether this click attacks, places a card or targets Power of Tea
+                      const result = controller.clickField(fieldOwner, modelRowIndex, modelColIndex);
                       if (!result.success) alert(result.reason);
-                      setSelectedCardId(null);
                       rerender();
                     }}
                     style={{
@@ -189,18 +147,17 @@ export default function GamePageV1Diagnostics() {
             {opponent.hand.map((card) => (
               <li key={card.instanceId}
               style={{
-                    backgroundColor: controller.isCardVisibleToPlayer(card, opponentIndex) ? "transparent" : "gray",
+                    backgroundColor: controller.isCardVisibleToPlayer(card, opponent) ? "transparent" : "gray",
                     cursor: controller.canInteractWithOpponentCard(opponent) ? "pointer" : "not-allowed"
                   }}
               onClick={() => {
-                const result = controller.interactWithOpponentCard(opponent, selectedCardId, card);
+                const result = controller.interactWithOpponentCard(opponent, card);
 
                 if (!result.success) {
                   alert(`Cannot place card: ${result.reason}`);
                   return;
                 }
 
-                setSelectedCardId(null);
                 rerender();
               }}
               >{card.name}</li>
@@ -232,37 +189,16 @@ export default function GamePageV1Diagnostics() {
               <li key={card.instanceId}
               style={{
                     cursor: controller.canPlayHandCard(currentPlayer, card) ? "pointer" : "not-allowed",
-                    backgroundColor: selectedCardId === card.instanceId ? "yellow" : "transparent",
-                    fontWeight: selectedCardId === card.instanceId ? "bold" : "normal"
+                    backgroundColor: controller.getSelectedCard() === card ? "yellow" : "transparent",
+                    fontWeight: controller.getSelectedCard() === card ? "bold" : "normal"
                   }}
               onClick={() => {
-                // If in discard phase, discard the card
-                if (controller.getPendingAction() === "discardExtraCards") {
-                  const result = controller.discardHandCard(card);
-                  if (!result.success) {
-                    alert(`Cannot discard card: ${result.reason}`);
-                    return;
-                  }
-                  rerender();
-                  return;
-                }
-
-                if (selectedCardId === card.instanceId) {
-                  controller.resetTemporaryEffectsIfNeeded();
-                  setSelectedCardId(null);
-                  return;
-                }
-
-                const result = controller.playHandCard(currentPlayer, card);
-
-                if (result.success) {
-                  setSelectedCardId(card.instanceId);
-                }
-                else {
+                // Discards in the discard phase, otherwise selects or deselects the card
+                const result = controller.clickHandCard(currentPlayer, card);
+                if (!result.success) {
                   alert(`Cannot play card: ${result.reason}`);
                   return;
                 }
-
                 rerender();
               }}
               >{card.name}</li>
@@ -271,11 +207,11 @@ export default function GamePageV1Diagnostics() {
 
           <button
             onClick={() => {
-              controller.drawCard(currentPlayerIndex);
+              controller.drawCard(currentPlayer);
               rerender();
             }}
             style={{
-            cursor: controller.canDrawCard(currentPlayerIndex) ? "pointer" : "not-allowed"
+            cursor: controller.canDrawCard(currentPlayer) ? "pointer" : "not-allowed"
             }}
           >
             Draw Card
@@ -289,14 +225,13 @@ export default function GamePageV1Diagnostics() {
                     cursor: controller.canInteractWithDiscardPileCard(card) ? "pointer" : "not-allowed"
                   }}
               onClick={() => {
-                const result = controller.selectDiscardPileCard(currentPlayer, selectedCardId, card);
+                const result = controller.selectDiscardPileCard(card);
 
                 if (!result.success) {
                   alert(`Cannot place card: ${result.reason}`);
                   return;
                 }
 
-                setSelectedCardId(null);
                 rerender();
               }}
               >{card.name}</li>
@@ -322,32 +257,13 @@ export default function GamePageV1Diagnostics() {
         ) : (
           <button
             onClick={() => {
-              const endResult = controller.endTurn();
+              // The controller also plays the AI's turns and notifies us as they happen
+              const endResult = controller.finishTurn();
               if (!endResult.success) {
                 alert(endResult.reason);
                 return;
               }
-              setSelectedCardId(null);
-              
-              // Recursive function to handle AI turns
-              const executeAITurnsRecursively = () => {
-                const currentGame = controller.getGameState();
-                if (currentGame.currentPlayer.isAI && !controller.isGameOver()) {
-                  // Use setTimeout to allow re-render before AI executes
-                  setTimeout(() => {
-                    (aiController as AIController).executeAITurn();
-                    controller.endTurn();
-                    rerender();
-                    
-                    // Check if next player is also AI and recursively execute
-                    executeAITurnsRecursively();
-                  }, 500);
-                } else {
-                  rerender();
-                }
-              };
-              
-              executeAITurnsRecursively();
+              rerender();
             }}
             disabled={controller.hasExtraHandCards(currentPlayer) || !controller.canEndTurn()}
           >
