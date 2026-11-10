@@ -196,7 +196,7 @@ export default function GamePageV1Diagnostics() {
               <li key={card.instanceId}
               style={{
                     backgroundColor: controller.isCardVisibleToPlayer(card, opponentIndex) ? "transparent" : "gray",
-                    cursor: controller.canInteractWithOpponentCard(opponent, card) ? "pointer" : "not-allowed"
+                    cursor: controller.canInteractWithOpponentCard(opponent) ? "pointer" : "not-allowed"
                   }}
               onClick={() => {
                 const result = controller.interactWithOpponentCard(opponent, selectedCardId, card);
@@ -292,7 +292,7 @@ export default function GamePageV1Diagnostics() {
             {game.getDiscardPile().map(card => (
               <li key={card.instanceId}
               style={{
-                    cursor: controller.canInteractWithDiscardPileCard(currentPlayer, card) ? "pointer" : "not-allowed"
+                    cursor: controller.canInteractWithDiscardPileCard(card) ? "pointer" : "not-allowed"
                   }}
               onClick={() => {
                 const result = controller.selectDiscardPileCard(currentPlayer, selectedCardId, card);

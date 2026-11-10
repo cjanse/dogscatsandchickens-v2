@@ -39,6 +39,24 @@ export class Player {
         return card;
     }
 
+    /**
+     * Takes every card out of a row (resetting each one, as removeFromField does) and returns them.
+     * A middle row is then deleted. The top and bottom rows stay, as empty rows to place into.
+     */
+    removeRow(rowIndex: number): Card[] {
+        const row = this.field[rowIndex];
+        if (!row) return [];
+        const removed: Card[] = [];
+        for (let col = 0; col < row.length; col++) {
+            const card = this.removeFromField(rowIndex, col);
+            if (card) removed.push(card);
+        }
+        if (rowIndex !== 0 && rowIndex !== this.field.length - 1) {
+            this.field.splice(rowIndex, 1);
+        }
+        return removed;
+    }
+
     playToField(instanceId: string, row: number, col: number) {
         const index = this.hand.findIndex(obj => obj.instanceId === instanceId)
         if (index === -1) return null;

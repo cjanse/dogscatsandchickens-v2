@@ -202,7 +202,7 @@ export default function GamePageV1Mobile() {
                   width: 50,
                   height: 65,
                   objectFit: "cover",
-                  cursor: controller.canInteractWithOpponentCard(opponent, card) ? "pointer" : "not-allowed",
+                  cursor: controller.canInteractWithOpponentCard(opponent) ? "pointer" : "not-allowed",
                   border: "1px solid black",
                   opacity: controller.isCardVisibleToPlayer(card, opponentIndex) ? 1 : 0.6
                 }}
@@ -348,8 +348,8 @@ export default function GamePageV1Mobile() {
                       backgroundColor: "white",
                       border: "1px solid #ccc",
                       borderRadius: 4,
-                      cursor: controller.canInteractWithDiscardPileCard(currentPlayer, card) ? "pointer" : "not-allowed",
-                      opacity: controller.canInteractWithDiscardPileCard(currentPlayer, card) ? 1 : 0.5
+                      cursor: controller.canInteractWithDiscardPileCard(card) ? "pointer" : "not-allowed",
+                      opacity: controller.canInteractWithDiscardPileCard(card) ? 1 : 0.5
                     }}
                   >
                     <img

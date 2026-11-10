@@ -55,8 +55,19 @@ export class GameBoard {
     this.turn.reset();
   }
 
+  opponentOf(player: Player): Player {
+    return this.players[(this.players.indexOf(player) + 1) % this.players.length];
+  }
+
   discard(card: Card) {
     this.discardPile.push(card);
+  }
+
+  /** Sends every card in a player's field row to the discard pile (a defeated creature and its upgrades). */
+  discardRow(player: Player, rowIndex: number): void {
+    for (const card of player.removeRow(rowIndex)) {
+      this.discard(card);
+    }
   }
 
   getDiscardPile(): Card[] {

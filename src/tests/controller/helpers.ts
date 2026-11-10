@@ -8,18 +8,20 @@ import { Player } from "../../model/game/Player";
 import type { CreatureType } from "../../model/types/CreatureType";
 import type { ActionType } from "../../model/types/ActionType";
 import type { UpgradeType } from "../../model/types/UpgradeType";
+import type { MatchingAbilityType } from "../../model/types/MatchingAbilityType";
 
 /** Builds a creature card. Copies with the same `id` can match each other. */
 export function makeCreature(
   id = "test_dog",
-  creatureType: CreatureType = "dog"
+  creatureType: CreatureType = "dog",
+  matchingAbilityType: MatchingAbilityType = "alwaysWin"
 ): CreatureCard {
   return CardFactory.create({
     id,
     name: id,
     type: "creature",
     creatureType,
-    matchingAbilityType: "alwaysWin",
+    matchingAbilityType,
     front: "front.jpg",
     back: "creature.jpg",
   }) as CreatureCard;

@@ -34,9 +34,10 @@ src/
     cards/      Card (abstract), CreatureCard, UpgradeCard, ActionCard, CardFactory
     deck/       Deck (shuffle/draw), DeckFactory (builds from deck.json counts)
     game/       GameBoard (players, deck, discard, currentPlayerIndex, temporaryEffects, turn, result), Player (hand, field), TurnState
+    rules/      Stateless game rules: Matchup (type circle), Battle, Upgrades (the upgrade stack), Matching (matched abilities), Placement (field slots)
     types/      String-literal union types (CardType, CreatureType, UpgradeType, ActionType, MatchingAbilityType, TurnType, GameResult, CardData)
   controller/
-    GameController.ts   All rule enforcement and turn state. Views talk only to this.
+    GameController.ts   Checks moves and coordinates them (validators, pendingAction, action cards). Views talk only to this.
     AIController.ts     Picks random valid moves through GameController's public can*/play* API
   app/loadV1Assets.ts   Turns cards.json and deck.json into CardData records
   assets/v1/            cards.json (card definitions) and deck.json (copies per card id; 36 cards total)
@@ -74,7 +75,7 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 
 ## Conventions
 
-- New card behavior: add the literal to the right `types/*.ts` union, add the definition to `cards.json` and `deck.json`, implement the validator and the resolver in `GameController`, and add a test.
+- New card behavior: add the literal to the right `types/*.ts` union, add the definition to `cards.json` and `deck.json`, put the rule itself in `src/model/rules/` and the move validator in `GameController`, and add a test. Cards are plain data, so don't add behavior methods to the card classes.
 - Keep the model free of React and controller imports. Keep game rules out of the views.
 - The tsconfig has `erasableSyntaxOnly`, so don't use constructor parameter properties (`constructor(private x: T)`) or `enum`. Use explicit fields and string unions.
 - Tests construct cards through `CardFactory.create(CardData)`, which needs `front` and `back`. `GameController`'s constructor shuffles and deals 5-card hands, so tests that need an exact state must build `GameBoard` and `Player` directly or account for the deal.
@@ -88,10 +89,10 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 Work through these in order: bugs, then MVC cleanup, then missing rules. Add a test for every bug fix so the MVC refactor has something to check against. Tick items off here as they are done.
 
 ### 0. Housekeeping
-- [x] Get `npm run build` passing. (Unused parameters on public methods are prefixed with `_` for now. `GamePage.tsx` was renamed to `GamePageV1Diagnostics.tsx`.)
+- [x] Get `npm run build` passing. (`GamePage.tsx` was renamed to `GamePageV1Diagnostics.tsx`.)
 - [x] Remove the `(card as any).front` / `.back` casts in the views. `Card` already has those fields.
 - [x] Rewrite the 3 outdated tests in `GameController.test.ts`. They predate the opening deal and the loss check in `endTurn`. Tests now build state with `createTestController()` in `src/tests/controller/helpers.ts` (wraps `GameController.fromBoard`).
-- [x] Get `npm run lint` passing. (`_`-prefixed unused args are allowed via eslint config; views create the controller with a lazy `useState` initializer instead of `useRef`.)
+- [x] Get `npm run lint` passing. (Views create the controller with a lazy `useState` initializer instead of `useRef`.)
 - [x] Update the README folder structure. Images now live in `public/assets/v1/cards/`.
 
 ### 1. Bugs
@@ -100,13 +101,13 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] **Moves counted too early:** `selectDiscardPileCard` and `interactWithOpponentCard` add to `movesThisTurn` before checking that the action worked.
 - [x] **Recovery turn:** `canDrawCard` requires `movesThisTurn == 0`. After a recovery move puts a creature on the field, the player can never draw.
 - [x] **Fake Upgrade** is discarded. It should go back to its owner's hand, unless a Revive or Self-Destruct also triggers (or its creature attacks and loses), in which case it is discarded.
-- [ ] **Counter Attack** behaves exactly like Defense. It should also defeat the attacker when the defender's type beats the attacker's.
+- [x] **Counter Attack** behaves exactly like Defense. It should also defeat the attacker when the defender's type beats the attacker's. (Implemented in `model/rules/Upgrades.ts`. It can't fire in a real game under the matched-Dog deviation below, since an attacker then only wins on type or as a matched Dog against a Dog.)
 - [x] **Revive** returns cards to the hand still marked `matched` (and `facedUp`). Reset both whenever a card leaves the field. (Done in the model: `Player.removeFromField` calls `Card.resetFieldState()`.)
 - [x] **AI turn loop:** the AI ignores the first-turn rule and the recovery-turn draw.
 
 ### 2. MVC cleanup
 - [x] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`. (`TurnState` on `GameBoard.turn`; `gameResult` is `GameBoard.result` so it survives the per-turn reset; `maxMovesPerTurn` is derived from `turnCount`.)
-- [ ] Move the game rules (battles, upgrade resolution, matching abilities) out of `GameController` into model services or classes. The controller should only check moves and coordinate them. Either implement or delete the empty `Card.canPlay`/`onPlay` stubs. Then remove the unused `_` parameters and the `argsIgnorePattern` exception in `eslint.config.js`.
+- [x] Move the game rules (battles, upgrade resolution, matching abilities) out of `GameController` into model services or classes. The controller should only check moves and coordinate them. Either implement or delete the empty `Card.canPlay`/`onPlay` stubs. Then remove the unused `_` parameters and the `argsIgnorePattern` exception in `eslint.config.js`. (Rules and placement checks live in `src/model/rules/`; the stubs were deleted. Action-card effects are still in the controller, since they are tied to `pendingAction`.)
 - [ ] Stop exposing editable model internals:
   - Make `getGameState()` actually read-only, or return a view model.
   - Replace direct `hand.push`, `discardPile.splice` and `row[i] = null` with model methods.

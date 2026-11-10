@@ -100,4 +100,48 @@ describe('Player', () => {
             expect(player.removeFromField(5, 5)).toBeNull();
         });
     });
+
+    describe('removeRow', () => {
+        const dog = () => CardFactory.create({
+            id: 'dog_basic',
+            name: 'Basic Dog',
+            type: 'creature',
+            creatureType: 'dog',
+            matchingAbilityType: 'alwaysWin',
+            front: 'dog_basic.jpg',
+            back: 'creature.jpg'
+        }) as CreatureCard;
+        const emptyRow = () => [null, null, null, null];
+
+        it('returns every card in the row, reset, and deletes a middle row', () => {
+            const player = new Player(1);
+            const left = dog();
+            const right = dog();
+            left.matched = right.matched = true;
+            left.facedUp = right.facedUp = true;
+            player.field = [emptyRow(), [left, right, null, null], emptyRow()];
+
+            const removed = player.removeRow(1);
+
+            expect(removed).toEqual([left, right]);
+            expect(left.matched).toBe(false);
+            expect(right.facedUp).toBe(false);
+            expect(player.field).toEqual([emptyRow(), emptyRow()]);
+        });
+
+        it('keeps the top and bottom rows as empty rows', () => {
+            const player = new Player(1);
+            const top = dog();
+            const bottom = dog();
+            player.field = [[top, null, null, null], [bottom, null, null, null]];
+
+            expect(player.removeRow(0)).toEqual([top]);
+            expect(player.removeRow(1)).toEqual([bottom]);
+            expect(player.field).toEqual([emptyRow(), emptyRow()]);
+        });
+
+        it('returns nothing for a row that does not exist', () => {
+            expect(new Player(1).removeRow(3)).toEqual([]);
+        });
+    });
 });

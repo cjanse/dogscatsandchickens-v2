@@ -9,6 +9,9 @@ import type { CreatureCard } from "../model/cards/CreatureCard";
 import type { CreatureType } from "../model/types/CreatureType";
 import type { TurnType } from "../model/types/TurnType";
 import type { GameResult } from "../model/types/GameResult";
+import { resolveBattle } from "../model/rules/Battle";
+import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
+import { canPlaceCreature, canPlaceUpgrade, hasUpgradeSlot } from "../model/rules/Placement";
 
 //Types
 export type { TurnType, GameResult };
@@ -300,7 +303,7 @@ playCard(
       break;
 
     case "action":
-      result = this.playActionCard(player, card as ActionCard, row, col);
+      result = this.playActionCard(card as ActionCard, row, col);
       break;
 
     default:
@@ -355,156 +358,31 @@ playCard(
       return { success: false, reason: "No attack started" };
     }
 
-    const opponent = this.game.players.find(
-      p => p !== this.game.currentPlayer
-    ) as Player;
-
+    const opponent = this.game.opponentOf(this.game.currentPlayer);
     const defender = opponent.field[row]?.[col];
 
     if (!defender || defender.type !== "creature") {
       return { success: false, reason: "Invalid attack target" };
     }
 
-    this.executeAttack(
-      opponent,
-      attacking.card,
-      attacking.row,
-      row,
-      col
+    resolveBattle(
+      this.game,
+      { player: this.game.currentPlayer, row: attacking.row, card: attacking.card },
+      { player: opponent, row, card: defender as CreatureCard }
     );
 
-    // cleanup
-    const wasMatchedCatAttack = attacking.card.matched && attacking.card.creatureType === "cat";
+    // cleanup. Read this after the battle: a defeated attacker has been reset (no longer matched).
+    const canAttackAgainThisTurn = canAttackAgain(attacking.card);
     this.pendingAction = null;
 
     // Always consume the turn
     turn.useAllMoves(this.game.maxMovesPerTurn);
 
     // A matched Cat may attack again. turnType stays "attack" so the player can click the cat again.
-    turn.finishAttack(wasMatchedCatAttack);
+    turn.finishAttack(canAttackAgainThisTurn);
 
     return { success: true };
   }
-
-  private executeAttack(
-  opponent: Player,
-  attacker: CreatureCard,
-  attackerRow: number,
-  targetRow: number,
-  targetCol: number
-  ): void {
-    const defender = opponent.field[targetRow][targetCol] as CreatureCard;
-
-    attacker.facedUp = true;
-    defender.facedUp = true;
-
-    const rules: Record<CreatureType, CreatureType> = {
-      dog: "cat",
-      cat: "chicken",
-      chicken: "dog"
-    };
-
-    const attackerWins = rules[attacker.creatureType] === defender.creatureType;
-    const defenderWins = rules[defender.creatureType] === attacker.creatureType;
-
-    const currentPlayer = this.game.currentPlayer;
-
-    if (attackerWins || (attacker.matched && attacker.creatureType === "dog" && defender.creatureType === "dog")) {
-      if (!this.checkUpgrades(currentPlayer, attackerRow, opponent, targetRow)) {
-        this.discardLosingRow(opponent, targetRow);
-      }
-    } else if (defenderWins) {  
-      this.discardLosingRow(currentPlayer, attackerRow);
-    }
-  }
-
-  /**
-   * Triggers the loser's upgrades from the top of the stack (col 3) down, stopping once the
-   * creature is saved or a Revive/Self-Destruct fires. Returns true if the creature survives.
-   *
-   * Every triggered upgrade leaves the field. A triggered Fake Upgrade returns to its owner's
-   * hand, unless a Revive or Self-Destruct also fired in the same stack, in which case it is
-   * discarded. Upgrades that never triggered stay put (creature saved) or go down with the row.
-   */
-  private checkUpgrades(winner: Player, winRowIndex: number, loser: Player, loseRowIndex: number): boolean
-  {
-    const triggeredCols: number[] = [];
-    let creatureSurvives = false;
-    let stackIsDestroyed = false;
-
-    for (const col of [3, 2]) {
-      const upgrade = loser.field[loseRowIndex][col] as UpgradeCard | null;
-      if (!upgrade) continue;
-
-      triggeredCols.push(col);
-      creatureSurvives = this.activateUpgrade(upgrade, loser, loseRowIndex, winner, winRowIndex);
-      if (creatureSurvives) break;
-      //self destruct and revive do not stack
-      if (upgrade.upgradeType === "selfDestruct" || upgrade.upgradeType === "revive") {
-        stackIsDestroyed = true;
-        break;
-      }
-    }
-
-    for (const col of triggeredCols) {
-      const upgrade = loser.field[loseRowIndex][col] as UpgradeCard;
-      const returnsToHand = upgrade.upgradeType === "fakeUpgrade" && !stackIsDestroyed;
-      const removed = loser.removeFromField(loseRowIndex, col);
-      if (!removed) continue;
-      if (returnsToHand) {
-        loser.addToHand(removed);
-      } else {
-        this.game.discard(removed);
-      }
-    }
-
-    return creatureSurvives;
-  }
-
-  private activateUpgrade(upgradeCard: UpgradeCard, loser: Player, loseRowIndex: number, winner: Player, winRowIndex: number): boolean {
-    switch (upgradeCard.upgradeType) {
-      case "counterAttack":
-      case "defense":
-        return true;
-      case "fakeUpgrade":
-        return false;
-      case "selfDestruct":
-        this.discardLosingRow(winner, winRowIndex);
-        return false;
-      case "revive":
-        this.resolveUpgradeRevive(loser, loseRowIndex);
-        return false
-    }
-    return false;
-  }
-
-  private resolveUpgradeRevive(loser: Player, loseRowIndex: number): void {
-    for (let col = 0; col < 2; col++) {
-      const card = loser.removeFromField(loseRowIndex, col);
-      if (card) {
-        loser.addToHand(card);
-      }
-    }
-  }
-
-  //handles losing creature
-  private discardLosingRow(player: Player, rowIndex: number): void {
-    const field = player.field;
-
-    for (let col = 0; col < field[rowIndex].length; col++) {
-      const removed = player.removeFromField(rowIndex, col);
-      if (removed) {
-        this.game.discard(removed);
-      }
-    }
-
-    // remove middle rows only
-    if (rowIndex !== 0 && rowIndex !== field.length - 1) {
-      field.splice(rowIndex, 1);
-    }
-  }
-
-
 
   private playCreatureCard(
     player: Player,
@@ -513,12 +391,9 @@ playCard(
     col: number
   ): PlayResult {
     const matchedResult = player.playToField(card.instanceId, row, col);
-    
-    // Handle matched ability activation
     if (matchedResult) {
-      this.activateMatchedAbility(matchedResult.matchedCard, player);
+      activateMatchedAbility(this.game, player, matchedResult.matchedCard);
     }
-    
     return { success: true };
   }
 
@@ -532,58 +407,17 @@ playCard(
     return { success: true };
   }
 
-  private activateMatchedAbility(matchedCard: CreatureCard, player: Player): void {
-    const opponent = this.game.players.find(
-      p => p !== player
-    ) as Player;
-
-    switch (matchedCard.matchingAbilityType) {
-      case "seeEverything":
-        // Reveal all current opponent field cards
-        this.revealOpponentFieldCards(opponent);
-        break;
-      case "multipleAttacks":
-        // Cat ability allows multiple attacks - tracked separately
-        // This is handled in startAttack method
-        break;
-      case "alwaysWin":
-        // Dog ability is handled during combat
-        break;
-    }
-  }
-
-  private revealOpponentFieldCards(opponent: Player): void {
-    for (const row of opponent.field) {
-      for (const card of row) {
-        if (card) {
-          card.facedUp = true;
-          console.log("Revealed card:", card.name, "facedUp:", card.facedUp);
-        }
-      }
-    }
-  }
-
-  private playActionCard(
-    player: Player,
-    card: ActionCard,
-    row: number,
-    col: number
-  ): PlayResult {
+  private playActionCard(card: ActionCard, row: number, col: number): PlayResult {
     switch (card.actionType) {
       case "powerOfTea":
-        return this.resolvePowerOfTea(player, card, row, col);
+        return this.resolvePowerOfTea(card, row, col);
     }
     return { success: false, reason: "Action card not supported" };
   }
 
-  private resolvePowerOfTea(
-  _player: Player,
-  card: ActionCard,
-  row: number,
-  col: number
-  ): PlayResult {
+  private resolvePowerOfTea(card: ActionCard, row: number, col: number): PlayResult {
     // Reveal opponent's card
-    const opponent = this.game.players.find(p => p !== this.game.currentPlayer) as Player;
+    const opponent = this.game.opponentOf(this.game.currentPlayer);
     const targetCard = opponent.field[row]?.[col];
     if (targetCard) {
       targetCard.facedUp = true;
@@ -630,9 +464,9 @@ playCard(
 
     switch (card.type) {
       case "creature":
-        return this.canPlaceCreature(player, card as CreatureCard, row, col);
+        return player === this.game.currentPlayer && canPlaceCreature(player, card, row, col);
       case "upgrade":
-        return this.canPlaceUpgrade(player, card as UpgradeCard, row, col);
+        return player === this.game.currentPlayer && canPlaceUpgrade(player, row, col);
       case "action":
         return this.canUseAction(player, card as ActionCard, row, col);
     }
@@ -669,55 +503,14 @@ playCard(
 
     // Allow first attack (no moves used yet) or matched cat extra attack
     const turn = this.game.turn;
-    if (turn.movesThisTurn === 0 || (turn.allowExtraAttack && creature.matched && creature.creatureType === "cat")) {
-      return true;
-    }
-    
-    return false;
+    return turn.movesThisTurn === 0 || (turn.allowExtraAttack && canAttackAgain(creature));
   }
 
   isValidAttackTarget(row: number, col: number): boolean {
-    const opponent = this.game.players.find(p => p !== this.game.currentPlayer);
-    const target = opponent?.field[row]?.[col];
-    
+    const target = this.game.opponentOf(this.game.currentPlayer).field[row]?.[col];
     return !!target && target.type === "creature";
   }
 
-  canPlaceCreature(
-    player: Player,
-    card: CreatureCard,
-    row: number,
-    col: number
-  ): boolean {
-    if (player !== this.game.currentPlayer) return false;
-    if (col !== 0 && col !== 1) return false;
-    if (player.field[row]?.[col]) return false;
-
-    const otherCol = col === 0 ? 1 : 0;
-    const otherCreature = player.field[row]?.[otherCol];
-
-    if (otherCreature && otherCreature.id !== card.id) return false;
-
-    return true;
-  }
-
-  canPlaceUpgrade(
-    player: Player,
-    card: UpgradeCard,
-    row: number,
-    col: number
-  ): boolean {
-    if (!card) return false;
-    if (player !== this.game.currentPlayer) return false;
-    if (col !== 2 && col !== 3) return false;
-    if (player.field[row]?.[col]) return false;
-    if (!player.field[row]?.[2] && col === 3) return false;
-    
-    const hasCreature = player.field[row]?.[0] || player.field[row]?.[1];
-    if (!hasCreature) return false;
-
-    return true;
-  }
   // End Play Card Validation Suite
 
   //Play Hand Card Logic suite
@@ -747,9 +540,10 @@ playCard(
         this.pendingAction = "powerOfTea";
         return { success: true };
       case "messyDorm":
-        return this.resolveMessyDorm(player, card);
+        return this.resolveMessyDorm(player);
       case "birdArmy":
-        return this.resolveBirdArmy(player, card);
+        this.pendingAction = "stealCard";
+        return { success: true };
       case "spirit":
         switch (card.id) {
           case "River_Spirits":
@@ -766,12 +560,9 @@ playCard(
     return {success: true};
   }
 
-  private resolveMessyDorm(player: Player, _card: ActionCard): PlayResult {
-    const opponent = this.game.players.find(p => p !== player);
-    if (!opponent) {
-      return { success: false, reason: "Opponent not found" };
-    }
-      // Add temporary effect
+  private resolveMessyDorm(player: Player): PlayResult {
+    const opponent = this.game.opponentOf(player);
+    // Add temporary effect
     this.game.temporaryEffects.push({
       type: "revealHand",
       sourcePlayerId: player.id,
@@ -783,10 +574,6 @@ playCard(
     return { success: true };
     }
 
-  private resolveBirdArmy(_player: Player, _card: ActionCard): PlayResult {
-    this.pendingAction = "stealCard";
-    return { success: true };
-  }
   //End Play Hand Card Logic
 
   //Can Play Hand Card Logic suite
@@ -797,30 +584,21 @@ playCard(
     // First turn: only a creature may be played
     if (this.isFirstTurn() && card.type !== "creature") return false;
     else {
-      if (card.type === "upgrade") return this.canPlayHandUpgrade(player, card);
-      else if (card.type === "action") return this.canPlayHandAction(player, card as ActionCard);
+      if (card.type === "upgrade") return hasUpgradeSlot(player);
+      else if (card.type === "action") return this.canPlayHandAction(card as ActionCard);
       else return true; //creature can ALWAYS be played
     }
   }
 
-  canPlayHandUpgrade(player: Player, _card: Card): boolean {
-    const playableRows = player.field.filter(row => 
-      row[3] == null && (row[0]?.type === 'creature' || row[1]?.type === 'creature')
-    )
-
-    return playableRows.length > 0;
-  }
-
-  canPlayHandAction(_player: Player, card: ActionCard): boolean{
+  private canPlayHandAction(card: ActionCard): boolean {
+    const opponent = this.game.opponentOf(this.game.currentPlayer);
     switch (card.actionType) {
-      case "powerOfTea": {
-        const playablePlaces = this.game.players[(this.game.currentPlayerIndex + 1) % 2].field.flat().filter(card => card?.facedUp === false)
-        return playablePlaces.length > 0;
-      }
+      case "powerOfTea":
+        return opponent.field.flat().some(fieldCard => fieldCard?.facedUp === false);
       case "messyDorm":
         return true;
       case "birdArmy":
-        return this.game.players[(this.game.currentPlayerIndex + 1) % 2].hand.length > 0;
+        return opponent.hand.length > 0;
       case "spirit":
         switch (card.id) {
           case "River_Spirits":
@@ -838,7 +616,7 @@ playCard(
 
   //Interact with opponent hand
   interactWithOpponentCard(player: Player, selectedCardId: string | null, card: Card): PlayResult { 
-    if (!this.canInteractWithOpponentCard(player, card)) {
+    if (!this.canInteractWithOpponentCard(player)) {
       return { success: false, reason: "Cannot interact with this card" };
     }
     if (!selectedCardId) {
@@ -893,7 +671,7 @@ playCard(
   //End interact with opponent hand
 
   //can interact with Opponent Card Logic suite
-  canInteractWithOpponentCard(player: Player, _card: Card): boolean {
+  canInteractWithOpponentCard(player: Player): boolean {
     if (this.isGameOver()) return false;
     if (player === this.game.currentPlayer) return false;
     return this.pendingAction === "stealCard";
@@ -905,7 +683,7 @@ playCard(
     if (selectedCardId == null) {
       return { success: false, reason: "No card selected" };
     }
-    if (!this.canInteractWithDiscardPileCard(player, card)) {
+    if (!this.canInteractWithDiscardPileCard(card)) {
       return { success: false, reason: "Cannot interact with this card" };
     }
 
@@ -935,7 +713,7 @@ playCard(
 
 
   //Can interact with Discard pile Logic suite
-  canInteractWithDiscardPileCard(_player: Player, card: Card): boolean {
+  canInteractWithDiscardPileCard(card: Card): boolean {
     if (this.isGameOver()) return false;
     if (!this.game.discardPile.includes(card)) return false;
     switch (card.type) {

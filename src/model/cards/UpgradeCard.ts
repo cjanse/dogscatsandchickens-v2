@@ -1,5 +1,3 @@
-import type { GameBoard } from "../game/GameBoard";
-import type { Player } from "../game/Player";
 import type { UpgradeType } from "../types/UpgradeType";
 import { Card } from "./Card";
 
@@ -9,13 +7,5 @@ export class UpgradeCard extends Card {
   constructor(id: string, name: string, front: string, back: string, upgradeType: UpgradeType, instanceId?: string) {
     super(id, name, "upgrade", front, back, instanceId);
     this.upgradeType = upgradeType;
-  }
-
-  canPlay() {
-    return true;
-  }
-
-  onPlay(_board: GameBoard, _player: Player) {
-    // placement handled elsewhere
   }
 }

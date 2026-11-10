@@ -139,6 +139,28 @@ describe('GameBoard', () => {
             expect(game.result).toEqual({ state: 'tie' });
         });
     });
+
+    it('opponentOf returns the other player', () => {
+        const alice = new Player(0);
+        const bob = new Player(1);
+        const game = new GameBoard([alice, bob], new Deck([]));
+        expect(game.opponentOf(alice)).toBe(bob);
+        expect(game.opponentOf(bob)).toBe(alice);
+    });
+
+    it('discardRow sends a whole row to the discard pile, reset', () => {
+        const alice = new Player(0);
+        const game = new GameBoard([alice, new Player(1)], new Deck([]));
+        const dog = CardFactory.create(dogData) as CreatureCard;
+        dog.facedUp = true;
+        alice.field[0][0] = dog;
+
+        game.discardRow(alice, 0);
+
+        expect(game.discardPile).toEqual([dog]);
+        expect(dog.facedUp).toBe(false);
+        expect(alice.field).toEqual([[null, null, null, null]]);
+    });
 });
 
 const dogData: CardData = {

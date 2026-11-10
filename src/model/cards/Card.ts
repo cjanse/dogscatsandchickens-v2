@@ -1,5 +1,3 @@
-import type { GameBoard } from "../game/GameBoard";
-import type { Player } from "../game/Player";
 import type { CardType } from "../types/CardType";
 
 export abstract class Card {
@@ -24,7 +22,4 @@ export abstract class Card {
   resetFieldState(): void {
     this.facedUp = false;
   }
-
-  abstract canPlay(board: GameBoard, player: Player): boolean;
-  abstract onPlay(board: GameBoard, player: Player): void;
 }
