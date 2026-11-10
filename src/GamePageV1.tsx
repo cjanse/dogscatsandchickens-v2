@@ -477,12 +477,16 @@ export default function GamePageV1() {
             ) : (
               <button
                 onClick={() => {
-                  controller.endTurn();
+                  const endResult = controller.endTurn();
+                  if (!endResult.success) {
+                    alert(endResult.reason);
+                    return;
+                  }
                   setSelectedCardId(null);
                   
                   const executeAITurnsRecursively = () => {
                     const currentGame = controller.getGameState();
-                    if (currentGame.currentPlayer.isAI) {
+                    if (currentGame.currentPlayer.isAI && !controller.isGameOver()) {
                       setTimeout(() => {
                         (aiController as AIController).executeAITurn();
                         controller.endTurn();
@@ -497,7 +501,7 @@ export default function GamePageV1() {
                   
                   executeAITurnsRecursively();
                 }}
-                disabled={controller.hasExtraHandCards(currentPlayer)}
+                disabled={controller.hasExtraHandCards(currentPlayer) || !controller.canEndTurn()}
                 style={{ padding: "4px 8px", fontSize: "10px" }}
               >
                 End Turn

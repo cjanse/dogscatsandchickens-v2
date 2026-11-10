@@ -3,8 +3,9 @@ import { GameBoard } from '../../model/game/GameBoard';
 import { Player } from '../../model/game/Player';
 import { CardFactory } from '../../model/cards/CardFactory';
 import type { CardData } from '../../model/types/CardData';
-import type { Deck } from '../../model/deck/Deck';
+import { Deck } from '../../model/deck/Deck';
 import { DeckFactory } from '../../model/deck/DeckFactory';
+import type { CreatureCard } from '../../model/cards/CreatureCard';
 
 describe('GameBoard', () => {
     it('initializes with two players', () => {
@@ -89,4 +90,63 @@ describe('GameBoard', () => {
         expect(game.players[0].field[1][0]).toBe(card); //Expect card to be in first row due to expandFieldIfNeeded functionality
         expect(game.players[0].hand.length).toBe(0);
     });
+
+    describe('turn state', () => {
+        function makeBoard() {
+            const alice = new Player(0);
+            const bob = new Player(1);
+            return { game: new GameBoard([alice, bob], new Deck([])), alice, bob };
+        }
+
+        it('allows 1 move on a first turn and 2 afterwards', () => {
+            const { game, alice } = makeBoard();
+            expect(game.maxMovesPerTurn).toBe(1);
+            alice.turnCount = 1;
+            expect(game.maxMovesPerTurn).toBe(2);
+        });
+
+        it('movesLeft subtracts the moves used this turn', () => {
+            const { game, alice } = makeBoard();
+            alice.turnCount = 1;
+            game.turn.useMove();
+            expect(game.movesLeft).toBe(1);
+        });
+
+        it('nextTurn counts the finished turn and resets the turn state', () => {
+            const { game, alice, bob } = makeBoard();
+            game.turn.useMove();
+            game.turn.markDrawn();
+            game.turn.beginAttack({ card: CardFactory.create(dogData) as CreatureCard, row: 0, col: 0 });
+
+            game.nextTurn();
+
+            expect(alice.turnCount).toBe(1);
+            expect(bob.turnCount).toBe(0);
+            expect(game.turn.movesThisTurn).toBe(0);
+            expect(game.turn.hasDrawn).toBe(false);
+            expect(game.turn.turnType).toBe('reinforce');
+            expect(game.turn.attackingCard).toBeNull();
+        });
+
+        it('keeps the game result across turns', () => {
+            const { game } = makeBoard();
+            expect(game.isGameOver).toBe(false);
+
+            game.endGame({ state: 'tie' });
+            game.nextTurn();
+
+            expect(game.isGameOver).toBe(true);
+            expect(game.result).toEqual({ state: 'tie' });
+        });
+    });
 });
+
+const dogData: CardData = {
+    id: 'dog_basic',
+    name: 'Basic Dog',
+    type: 'creature',
+    creatureType: 'dog',
+    matchingAbilityType: 'alwaysWin',
+    front: 'dog_basic.jpg',
+    back: 'creature.jpg'
+};

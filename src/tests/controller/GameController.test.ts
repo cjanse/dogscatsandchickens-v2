@@ -1,21 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { GameController } from "../../controller/GameController";
 import type { CardData } from "../../model/types/CardData";
-import { CardFactory } from "../../model/cards/CardFactory";
-import type { Card } from "../../model/cards/Card";
-import type { ActionType } from "../../model/types/ActionType";
-import { createTestController, makeCreature } from "./helpers";
-
-function makeAction(id: string, actionType: ActionType): Card {
-  return CardFactory.create({
-    id,
-    name: id,
-    type: "action",
-    actionType,
-    front: "front.jpg",
-    back: "action.jpg",
-  });
-}
+import { createTestController, makeAction, makeCreature, makeUpgrade } from "./helpers";
 
 const mockCards: Record<string, CardData> = {
   test1: {
@@ -259,6 +245,111 @@ describe("GameController", () => {
       expect(controller.getMovesLeft()).toBe(1);
       expect(players[0].hand).toContain(stealable);
       expect(game.discardPile).toContain(birdArmy);
+    });
+  });
+
+  describe("turn flow", () => {
+    it("lets a recovering player draw once a creature is on the field", () => {
+      const creature = makeCreature("hand_dog");
+      const { controller, game, players } = createTestController({
+        deck: [makeCreature("deck_1"), makeCreature("deck_2")],
+        hands: [[creature], []],
+        fields: [[], [makeCreature()]],
+      });
+
+      // No creature on the field: no draw is owed yet, so moves are allowed
+      expect(controller.canDrawCard(0)).toBe(false);
+      expect(controller.mustDrawFirst()).toBe(false);
+
+      expect(controller.playCard(0, creature.instanceId, 0, 0).success).toBe(true);
+
+      expect(controller.canDrawCard(0)).toBe(true);
+      controller.drawCard(0);
+      expect(players[0].hand.length).toBe(1);
+      expect(game.deck.size).toBe(1);
+    });
+
+    it("lets a recovering player draw after using both moves, and blocks End Turn until then", () => {
+      const spirits = makeAction("Forest_Spirits", "spirit");
+      const discarded = makeCreature("discarded_dog");
+      const { controller, game, players } = createTestController({
+        deck: [makeCreature("deck_1")],
+        hands: [[spirits], []],
+        fields: [[], [makeCreature()]],
+      });
+      game.discard(discarded);
+
+      controller.playHandCard(players[0], spirits);
+      expect(controller.selectDiscardPileCard(players[0], spirits.instanceId, discarded).success).toBe(true);
+      expect(controller.playCard(0, discarded.instanceId, 0, 0).success).toBe(true);
+      expect(controller.getMovesLeft()).toBe(0);
+
+      const blocked = controller.endTurn();
+      expect(blocked).toEqual({ success: false, reason: "You must draw first" });
+      expect(game.currentPlayerIndex).toBe(0);
+
+      expect(controller.canDrawCard(0)).toBe(true);
+      controller.drawCard(0);
+      expect(game.deck.size).toBe(0);
+
+      expect(controller.endTurn().success).toBe(true);
+      expect(game.currentPlayerIndex).toBe(1);
+    });
+
+    it("blocks every move until the player has drawn", () => {
+      const twin = makeCreature(); // matches the creature at row 0, col 0
+      const { controller, players } = createTestController({
+        deck: [makeCreature("deck_1")],
+        hands: [[twin], []],
+      });
+
+      expect(controller.mustDrawFirst()).toBe(true);
+      expect(controller.canPlayHandCard(players[0], twin)).toBe(false);
+      expect(controller.canPlayCard(0, twin.instanceId, 0, 1)).toBe(false);
+      expect(controller.playCard(0, twin.instanceId, 0, 1).success).toBe(false);
+      expect(controller.canAttackWith(0, 0)).toBe(false);
+      expect(controller.startAttack(0, 0)).toEqual({ success: false, reason: "You must draw first" });
+      expect(controller.canEndTurn()).toBe(false);
+
+      controller.drawCard(0);
+
+      expect(controller.mustDrawFirst()).toBe(false);
+      expect(controller.canAttackWith(0, 0)).toBe(true);
+      expect(controller.canEndTurn()).toBe(true);
+      expect(controller.playCard(0, twin.instanceId, 0, 1).success).toBe(true);
+    });
+
+    it("does not require a draw when the deck is empty", () => {
+      const twin = makeCreature();
+      const { controller, players } = createTestController({ hands: [[twin], []] });
+
+      expect(controller.mustDrawFirst()).toBe(false);
+      expect(controller.canPlayHandCard(players[0], twin)).toBe(true);
+      expect(controller.canAttackWith(0, 0)).toBe(true);
+    });
+
+    it("only allows a creature to be played on a player's first turn", () => {
+      const dorm = makeAction("Messy_Dorm_1", "messyDorm");
+      const upgrade = makeUpgrade();
+      const twin = makeCreature();
+      const { controller, players } = createTestController({
+        deck: [makeCreature("deck_1")],
+        hands: [[dorm, upgrade, twin], []],
+        turnCounts: [0, 0],
+      });
+
+      // No draw on the first turn, so nothing is owed
+      expect(controller.mustDrawFirst()).toBe(false);
+
+      expect(controller.canPlayHandCard(players[0], dorm)).toBe(false);
+      expect(controller.playHandCard(players[0], dorm).success).toBe(false);
+      expect(controller.canPlayHandCard(players[0], upgrade)).toBe(false);
+      expect(controller.canPlayCard(0, upgrade.instanceId, 0, 2)).toBe(false);
+      expect(controller.canAttackWith(0, 0)).toBe(false);
+      expect(controller.startAttack(0, 0).success).toBe(false);
+
+      expect(controller.canPlayHandCard(players[0], twin)).toBe(true);
+      expect(controller.playCard(0, twin.instanceId, 0, 1).success).toBe(true);
     });
   });
 });

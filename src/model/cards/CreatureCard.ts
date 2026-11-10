@@ -15,6 +15,11 @@ export class CreatureCard extends Card {
     this.matchingAbilityType = matchingAbilityType;
   }
 
+  override resetFieldState(): void {
+    super.resetFieldState();
+    this.matched = false;
+  }
+
   canPlay() {
     return true;
   }

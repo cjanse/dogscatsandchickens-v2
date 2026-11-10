@@ -33,8 +33,8 @@ src/
   model/        Domain objects. Must not import React or anything from controller/ or the views.
     cards/      Card (abstract), CreatureCard, UpgradeCard, ActionCard, CardFactory
     deck/       Deck (shuffle/draw), DeckFactory (builds from deck.json counts)
-    game/       GameBoard (players, deck, discard, currentPlayerIndex, temporaryEffects), Player (hand, field)
-    types/      String-literal union types (CardType, CreatureType, UpgradeType, ActionType, MatchingAbilityType, CardData)
+    game/       GameBoard (players, deck, discard, currentPlayerIndex, temporaryEffects, turn, result), Player (hand, field), TurnState
+    types/      String-literal union types (CardType, CreatureType, UpgradeType, ActionType, MatchingAbilityType, TurnType, GameResult, CardData)
   controller/
     GameController.ts   All rule enforcement and turn state. Views talk only to this.
     AIController.ts     Picks random valid moves through GameController's public can*/play* API
@@ -55,13 +55,15 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 - **Field layout:** `Player.field` is `(Card | null)[][]`. Each row is one creature slot laid out as `[creature, matchingTwin, upgrade (bottom), upgrade (top)]`:
   - cols 0–1 hold creatures, and a twin in the other column makes a matched pair.
   - cols 2–3 hold upgrades. Col 3 can only be filled once col 2 is filled, and **col 3 triggers first** (it is the top of the stack).
+  - Take cards off the field with `Player.removeFromField(row, col)`, never `row[i] = null`. It resets `facedUp` and `matched`, so the card is clean whether it goes to the hand or the discard pile.
   - `Player.playToField` adds an empty row at the top or bottom whenever a card is placed on an edge row, so there is always an empty row to place into. `discardLosingRow` removes emptied middle rows.
 - **Visibility:** `Card.facedUp` means the card is permanently revealed on the field. Temporary reveals, such as Messy Dorm, live in `GameBoard.temporaryEffects`. Views must call `controller.isCardVisibleToPlayer(card, ownerIndex)` and must not read `facedUp` directly.
 - **Card images:** `Card.front` and `Card.back` hold image filenames from cards.json. The back image depends on the card type (`creature.jpg`, `upgrade.jpg`, `action.jpg`).
 
 ### Controller flow
 
-- Every turn-scoped variable lives in `GameController`, not in the model: `movesThisTurn`, `maxMovesPerTurn` (1 on a player's first turn, otherwise 2), `turnType`, `hasDrawn`, `pendingAction`, `attackingCard`, `allowExtraAttack`, `gameResult`.
+- Turn state lives in the model. `GameBoard.turn` (a `TurnState`) holds `movesThisTurn`, `turnType`, `hasDrawn`, `attackingCard` and `allowExtraAttack`, and changes them through intent-named methods (`useMove`, `beginAttack`, ...). `GameBoard.maxMovesPerTurn` is derived (1 on a player's first turn, otherwise 2). `GameBoard.result` holds the game result and survives turns. `GameBoard.nextTurn()` counts the finished turn, passes play on and resets `turn`.
+- Only `pendingAction` (two-click UI interaction state) stays in `GameController`.
 - Moves that take two clicks go through `pendingAction`:
   - Hand card → `playHandCard()` sets the pending state (`powerOfTea`, `stealCard`, `creatureRevive`, and so on).
   - The second click goes to `playCard()` for the field, `interactWithOpponentCard()` for the opponent's hand, or `selectDiscardPileCard()` for the discard pile.
@@ -96,14 +98,14 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] **Messy Dorm + End Turn:** `endTurn` resets `movesThisTurn` to 0, then `resetTemporaryEffectsIfNeeded` → `clearRevealIfNeeded` adds 1 back. The next player starts with a move already used and can't draw or attack.
 - [x] **Discard pile:** the guard in `selectDiscardPileCard` is inverted (`!canInteract && selectedCardId != null`). Clicking a card with nothing selected still uses a move.
 - [x] **Moves counted too early:** `selectDiscardPileCard` and `interactWithOpponentCard` add to `movesThisTurn` before checking that the action worked.
-- [ ] **Recovery turn:** `canDrawCard` requires `movesThisTurn == 0`. After a recovery move puts a creature on the field, the player can never draw.
-- [ ] **Fake Upgrade** is discarded. It should go back to its owner's hand, unless a Revive also triggers, in which case it is discarded.
+- [x] **Recovery turn:** `canDrawCard` requires `movesThisTurn == 0`. After a recovery move puts a creature on the field, the player can never draw.
+- [x] **Fake Upgrade** is discarded. It should go back to its owner's hand, unless a Revive or Self-Destruct also triggers (or its creature attacks and loses), in which case it is discarded.
 - [ ] **Counter Attack** behaves exactly like Defense. It should also defeat the attacker when the defender's type beats the attacker's.
-- [ ] **Revive** returns cards to the hand still marked `matched` (and `facedUp`). Reset both whenever a card leaves the field.
-- [ ] **AI turn loop:** the AI ignores the first-turn rule and the recovery-turn draw.
+- [x] **Revive** returns cards to the hand still marked `matched` (and `facedUp`). Reset both whenever a card leaves the field. (Done in the model: `Player.removeFromField` calls `Card.resetFieldState()`.)
+- [x] **AI turn loop:** the AI ignores the first-turn rule and the recovery-turn draw.
 
 ### 2. MVC cleanup
-- [ ] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`.
+- [x] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`. (`TurnState` on `GameBoard.turn`; `gameResult` is `GameBoard.result` so it survives the per-turn reset; `maxMovesPerTurn` is derived from `turnCount`.)
 - [ ] Move the game rules (battles, upgrade resolution, matching abilities) out of `GameController` into model services or classes. The controller should only check moves and coordinate them. Either implement or delete the empty `Card.canPlay`/`onPlay` stubs. Then remove the unused `_` parameters and the `argsIgnorePattern` exception in `eslint.config.js`.
 - [ ] Stop exposing editable model internals:
   - Make `getGameState()` actually read-only, or return a view model.
@@ -122,6 +124,6 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [ ] **Power of Tea:** revealing one card of a matched pair should flip both, and revealing a matched Chicken should trigger its ability.
 - [ ] **Matching:** a pair should stay face down until the player chooses to activate it, which costs no move. Right now it reveals and activates as soon as it is made. Activation is automatic only if the bottom creature was already face up.
 - [ ] **Matched Cat:** only the same Cat should be allowed to keep attacking. Right now any matched Cat can.
-- [ ] **First turn:** only a creature may be played.
+- [x] **First turn:** only a creature may be played.
 - [ ] **Setup:** deal 3 random creatures and then 2 more cards. Right now the controller redraws whole 5-card hands until one has at least 3 creatures.
-- [ ] **Draw first:** the player must draw before making any move.
+- [x] **Draw first:** the player must draw before making any move.

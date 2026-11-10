@@ -27,6 +27,18 @@ export class Player {
         return this.hand.splice(index, 1)[0];
     }
 
+    /**
+     * Takes the card out of a field slot and resets its field-only state (face up, matched).
+     * The caller decides where it goes next: back to the hand or the discard pile.
+     */
+    removeFromField(row: number, col: number): Card | null {
+        const card = this.field[row]?.[col];
+        if (!card) return null;
+        this.field[row][col] = null;
+        card.resetFieldState();
+        return card;
+    }
+
     playToField(instanceId: string, row: number, col: number) {
         const index = this.hand.findIndex(obj => obj.instanceId === instanceId)
         if (index === -1) return null;
