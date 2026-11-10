@@ -351,9 +351,9 @@ describe("finishTurn and the AI", () => {
 
   it("notifies subscribers when the turn ends and after the AI has played", () => {
     const { controller, players } = setupAgainstAI();
+    controller.drawCard(players[0]);
     const listener = vi.fn();
     controller.subscribe(listener);
-    controller.drawCard(players[0]);
 
     controller.finishTurn();
     expect(listener).toHaveBeenCalledTimes(1);
@@ -362,11 +362,28 @@ describe("finishTurn and the AI", () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
+  it("notifies once for a whole AI turn, however many moves the AI makes", () => {
+    const { controller, players } = createTestController({
+      deck: [makeCreature("deck_1"), makeCreature("deck_2")],
+      hands: [[], [makeCreature("ai_1", "cat"), makeCreature("ai_2", "chicken")]],
+      player2IsAI: true,
+    });
+    controller.drawCard(players[0]);
+    controller.finishTurn();
+    const listener = vi.fn();
+    controller.subscribe(listener);
+
+    vi.advanceTimersByTime(controller.aiTurnDelayMs);
+
+    expect(players[1].turnCount).toBe(2); // the AI played its turn
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it("stops notifying a subscriber that unsubscribed", () => {
     const { controller, players } = setupAgainstAI();
+    controller.drawCard(players[0]);
     const listener = vi.fn();
     const unsubscribe = controller.subscribe(listener);
-    controller.drawCard(players[0]);
     unsubscribe();
 
     controller.finishTurn();
@@ -414,5 +431,74 @@ describe("finishTurn and the AI", () => {
 
     expect(controller.isGameOver()).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("notifying views", () => {
+  function subscribed(setup: Parameters<typeof createTestController>[0] = {}) {
+    const test = createTestController(setup);
+    const listener = vi.fn();
+    test.controller.subscribe(listener);
+    return { ...test, listener };
+  }
+
+  it("notifies once and bumps the version after a human action", () => {
+    const { controller, players, listener } = subscribed({ deck: [makeCreature("deck_1")] });
+    const before = controller.getVersion();
+
+    expect(controller.drawCard(players[0]).success).toBe(true);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(controller.getVersion()).toBe(before + 1);
+  });
+
+  it("notifies once when selecting a hand card", () => {
+    const card = makeCreature("hand_1");
+    const { controller, players, listener } = subscribed({ hands: [[card], []] });
+
+    controller.clickHandCard(players[0], card);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies once for a click that calls other actions inside it", () => {
+    const twin = makeCreature();
+    const { controller, players, listener } = subscribed({ hands: [[twin], []] });
+    controller.clickHandCard(players[0], twin);
+    listener.mockClear();
+
+    // clickField → playCard: still a single notification
+    expect(controller.clickField(players[0], 0, 1)).toEqual({ success: true });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("also notifies after a failed action", () => {
+    const { controller, players, listener } = subscribed();
+
+    expect(controller.drawCard(players[0]).success).toBe(false);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not notify for queries", () => {
+    const { controller, players, listener } = subscribed();
+
+    controller.canClickField(players[0], 0, 0);
+    controller.canDrawCard(players[0]);
+    controller.isCardVisibleToPlayer(players[1].field[0][0]!, players[1]);
+
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe("isFaceUp", () => {
+  it("reports whether a card is permanently face up", () => {
+    const { controller, players } = createTestController();
+    const card = players[0].field[0][0]!;
+
+    expect(controller.isFaceUp(card)).toBe(false);
+    card.facedUp = true;
+    expect(controller.isFaceUp(card)).toBe(true);
   });
 });

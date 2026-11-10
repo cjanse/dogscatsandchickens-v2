@@ -1,501 +1,203 @@
 import { useState, useEffect } from "react";
-import { GameController } from "./controller/GameController";
-import { loadV1Assets } from "./app/loadV1Assets";
-import { cardBackUrl, cardFrontUrl } from "./app/cardImages";
-import { fieldRowsWithPlaceholders } from "./app/fieldRows";
-import type { FieldView } from "./model/game/views";
+import { useGameController } from "./app/useGameController";
+import { columnsInUse, fieldRowsWithPlaceholders, visualCells } from "./app/fieldRows";
+import type { PlayerView } from "./model/game/views";
+import { CardImage } from "./view/components/CardImage";
+import { DeckPile } from "./view/components/DeckPile";
+import { DiscardPile } from "./view/components/DiscardPile";
+import { FieldCell } from "./view/components/FieldCell";
+import { GameOverScreen } from "./view/components/GameOverScreen";
+import { MessageBanner } from "./view/components/MessageBanner";
+import { TurnControls } from "./view/components/TurnControls";
 
+/** The desktop view: opponent on the left, deck and turn info in the middle, current player on the right. */
 export default function GamePageV1() {
-  // This is the game view using card images. Initially copied from diagnostics.
-  // Will be modified to display card images instead of text.
-  const [, forceUpdate] = useState(0);
-  const [discardPileExpanded, setDiscardPileExpanded] = useState(false);
+  const controls = useGameController();
+  const { queries, currentPlayer, opponent } = controls;
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  // Created once; the controller is a stable mutable object (views call forceUpdate after mutations).
-  const [controller] = useState(() => {
-    const { cardDefs, deckConfig } = loadV1Assets();
-    // Set to true to play against AI, false for two human players
-    const player2IsAI = true;
-    return new GameController(cardDefs, deckConfig, player2IsAI);
-  });
 
-  // The controller runs the AI's turns itself and tells us when something changed
   useEffect(() => {
-    const unsubscribe = controller.subscribe(() => forceUpdate((n) => n + 1));
-    return () => {
-      unsubscribe();
-      controller.dispose();
-    };
-  }, [controller]);
-
-  // Listen for window resize events
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-    };
-    
+    const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const game = controller.getGameState();
+  // Side columns share the width left over by the center column (roughly 180px) and gaps
+  const sideColumnWidth = (windowSize.width - 200) / 2;
 
-  //Getting player info
-  const currentPlayerIndex = game.currentPlayerIndex;
-  const opponentIndex = currentPlayerIndex === 0 ? 1 : 0;
-
-  const currentPlayer = game.players[currentPlayerIndex];
-  const opponent = game.players[opponentIndex];
-
-  const rerender = () => forceUpdate((n) => n + 1);
-
-  // Calculate responsive sizes based on viewport
-  const viewportWidth = windowSize.width;
-  const viewportHeight = windowSize.height;
-  
-  // Side columns get equal space minus center column (roughly 180px) and gaps
-  const sideColumnWidth = (viewportWidth - 200) / 2;
-  
-  // Scale hand cards based on available width (aim for ~5-6 cards per row)
+  // Aim for ~5-6 hand cards per row
   const handCardWidth = Math.max(25, sideColumnWidth * 0.15);
   const handCardHeight = handCardWidth * 1.3;
-  
-  // Scale field cards proportionally
-  const fieldCardWidth = Math.max(35, sideColumnWidth * 0.2);
-  const fieldCardHeight = fieldCardWidth * 1.3;
-  
-  // Scale center column deck/discard cards
-  const deckCardWidth = fieldCardWidth;
-  const deckCardHeight = fieldCardHeight;
-  
-  // Scale font sizes proportionally
-  const baseFontSize = Math.max(7, viewportHeight * 0.015);
+
+  const pileCardWidth = Math.max(35, sideColumnWidth * 0.2);
+  const pileCardHeight = pileCardWidth * 1.3;
+
+  const baseFontSize = Math.max(7, windowSize.height * 0.015);
   const headerFontSize = baseFontSize * 1.3;
   const smallFontSize = baseFontSize * 0.85;
+  const labelStyle = { margin: "1px 0", fontSize: `${smallFontSize}px` };
 
-  //Helper function to assist with rendering the field
-  function renderField(
-    field: FieldView,
-    isOpponent: boolean,
-    compact: boolean = false
-  ) {
-    const fieldRows = fieldRowsWithPlaceholders(field);
+  function renderField(owner: PlayerView, isOpponent: boolean) {
+    const fieldRows = fieldRowsWithPlaceholders(owner.field);
     const visualRows = isOpponent ? [...fieldRows].reverse() : fieldRows;
 
-    // Calculate a single dynamicCardWidth/dynamicCardHeight for the entire field
-    let maxColsToShow = 1;
-    let hasAnyCardsAnywhere = false;
-    visualRows.forEach(({ cells: row }) => {
-      const hasAnyCards = row.some(card => card !== null);
-      const hasCreature = row.some(card => card?.type === "creature");
-      const hasUpgrade = row.some(card => card?.type === "upgrade");
-      let colsToShow = 1;
-      if (hasAnyCards && hasCreature && !hasUpgrade) {
-        colsToShow = 3;
-      } else if (hasAnyCards && hasCreature && hasUpgrade) {
-        colsToShow = 4;
-      }
-      if (colsToShow > maxColsToShow) maxColsToShow = colsToShow;
-      if (hasAnyCards) hasAnyCardsAnywhere = true;
-    });
-    let dynamicCardWidth;
-    if (!hasAnyCardsAnywhere) {
-      dynamicCardWidth = 40;
-    } else {
-      const totalGap = (maxColsToShow - 1) * 2;
-      dynamicCardWidth = Math.max(35, Math.min(110, (sideColumnWidth - totalGap) / maxColsToShow));
-    }
-    const dynamicCardHeight = dynamicCardWidth * 1.3;
-    const marginRight = compact ? 1 : 2;
-    const marginBottom = compact ? 1 : 2;
+    // Every row is drawn as wide as the widest one, so all cells share one size
+    const maxColsToShow = Math.max(...fieldRows.map(r => columnsInUse(r.cells)));
+    const fieldIsEmpty = owner.field.length === 0;
+    const cardWidth = fieldIsEmpty
+      ? 40
+      : Math.max(35, Math.min(110, (sideColumnWidth - (maxColsToShow - 1) * 2) / maxColsToShow));
+    const cardHeight = cardWidth * 1.3;
 
     return (
       <div style={{ display: "flex", justifyContent: "center", overflowX: "auto", width: "100%" }}>
-        {visualRows.map((rowEntry, visualRowIndex) => {
-          const modelRowIndex = rowEntry.modelRow;
-          const row = rowEntry.cells;
-          const visualCols = isOpponent ? [...row].reverse() : row;
-          return (
-            <div
-              key={visualRowIndex}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                marginRight: marginRight
-              }}
-            >
-              {visualCols.map((cell, visualColIndex) => {
-                if (isOpponent) {
-                  if (visualColIndex < visualCols.length - maxColsToShow) return null;
-                } else {
-                  if (visualColIndex >= maxColsToShow) return null;
-                }
-                const modelColIndex = isOpponent
-                  ? row.length - 1 - visualColIndex
-                  : visualColIndex;
-                const fieldOwner = isOpponent ? opponent : currentPlayer;
-                const isVisible = cell && controller.isCardVisibleToPlayer(cell, fieldOwner);
-                const isSelected = controller.getSelectedCard() !== null;
-                const canPlaceHere = controller.canClickField(fieldOwner, modelRowIndex, modelColIndex);
-                let borderColor = "black";
-                let cursor = "default";
-                if (canPlaceHere) {
-                  borderColor = "green";
-                  cursor = "pointer";
-                } else {
-                  borderColor = "red";
-                }
-                return (
-                  <div
-                    key={visualColIndex}
-                    className="field-card-container"
-                    onClick={() => {
-                      if (!canPlaceHere) return;
-
-                      // The controller decides whether this click attacks, places a card or targets Power of Tea
-                      const result = controller.clickField(fieldOwner, modelRowIndex, modelColIndex);
-                      if (!result.success) alert(result.reason);
-                      rerender();
-                    }}
-                    style={{
-                      width: dynamicCardWidth,
-                      height: dynamicCardHeight,
-                      border: "1px solid black",
-                      marginBottom: marginBottom,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: "#f5f5f5",
-                      borderColor: isSelected ? borderColor : "black",
-                      borderWidth: 1,
-                      cursor: isSelected ? cursor : "default",
-                      padding: 0,
-                      overflow: "visible",
-                      boxSizing: "border-box"
-                    }}
-                  >
-                    {cell ? (
-                      <div style={{
-                        width: "100%",
-                        height: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "#fff"
-                      }}>
-                        <img
-                          className="field-card-image"
-                          src={
-                            isOpponent
-                              ? (isVisible && cell.facedUp ? cardFrontUrl(cell) : cardBackUrl(cell))
-                              : cardFrontUrl(cell)
-                          }
-                          alt={cell.name}
-                          style={{
-                            maxWidth: "100%",
-                            maxHeight: "100%",
-                            width: "auto",
-                            height: "auto",
-                            objectFit: "contain",
-                            display: "block",
-                            opacity: !isOpponent && !(isVisible && cell.facedUp) ? 0.5 : 1
-                          }}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-  
-  const result = controller.getGameResult();
-  if (result.state !== "ongoing") {
-    return (
-      <div>
-        {result.state === "tie" && <h1>It's a Tie!</h1>}
-        {result.state === "loss" && <h1>Player {result.loserId} Loses</h1>}
-      </div>
-    );
-  }
-  else {
-    return (
-      <div style={{ padding: 2, display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 4, height: "100vh", width: "100%", overflow: "hidden" }}>
-        
-        {/* LEFT COLUMN: Opponent */}
-        <div style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", overflow: "auto", minWidth: 0 }}>
-          <h4 style={{ margin: "1px 0", fontSize: `${headerFontSize}px` }}>{opponent.id}</h4>
-          <p style={{ margin: "0px 0", fontSize: `${smallFontSize}px` }}>Hand ({opponent.hand.length})</p>
-          <div style={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center", marginBottom: 3 }}>
-            {opponent.hand.map((card) => (
-              <img
-                key={card.instanceId}
-                src={controller.isCardVisibleToPlayer(card, opponent) ? cardFrontUrl(card) : cardBackUrl(card)}
-                alt={card.name}
+        {visualRows.map((rowEntry) => (
+          <div key={rowEntry.modelRow} style={{ display: "flex", flexDirection: "column", marginRight: 1 }}>
+            {visualCells(rowEntry.cells, isOpponent, maxColsToShow).map(({ cell, modelCol }) => (
+              <FieldCell
+                key={modelCol}
+                className="field-card-container"
+                controls={controls}
+                owner={owner}
+                row={rowEntry.modelRow}
+                col={modelCol}
                 style={{
-                  width: handCardWidth,
-                  height: handCardHeight,
-                  objectFit: "contain",
-                  cursor: controller.canInteractWithOpponentCard(opponent) ? "pointer" : "not-allowed",
-                  border: "0.5px solid black",
-                  opacity: controller.isCardVisibleToPlayer(card, opponent) ? 1 : 0.6
+                  width: cardWidth,
+                  height: cardHeight,
+                  borderWidth: 1,
+                  marginBottom: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: cell ? "#fff" : "#f5f5f5",
+                  boxSizing: "border-box",
+                  padding: 0,
+                  overflow: "visible",
                 }}
-                onClick={() => {
-                  const result = controller.interactWithOpponentCard(opponent, card);
-
-                  if (!result.success) {
-                    alert(`Cannot place card: ${result.reason}`);
-                    return;
-                  }
-
-                  rerender();
-                }}
-              />
+              >
+                {cell && (
+                  <CardImage
+                    className="field-card-image"
+                    controls={controls}
+                    card={cell}
+                    owner={owner}
+                    onField
+                    style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }}
+                  />
+                )}
+              </FieldCell>
             ))}
           </div>
-          {renderField(opponent.field, true, true)}
+        ))}
+      </div>
+    );
+  }
+
+  if (controls.result.state !== "ongoing") {
+    return <GameOverScreen result={controls.result} />;
+  }
+
+  return (
+    <div style={{ padding: 2, display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 4, height: "100vh", width: "100%", overflow: "hidden" }}>
+
+      {/* LEFT COLUMN: Opponent */}
+      <div style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", overflow: "auto", minWidth: 0 }}>
+        <h4 style={{ margin: "1px 0", fontSize: `${headerFontSize}px` }}>{opponent.id}</h4>
+        <p style={{ margin: 0, fontSize: `${smallFontSize}px` }}>Hand ({opponent.hand.length})</p>
+        <div style={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center", marginBottom: 3 }}>
+          {opponent.hand.map((card) => (
+            <CardImage
+              key={card.instanceId}
+              controls={controls}
+              card={card}
+              owner={opponent}
+              onClick={() => controls.clickOpponentHandCard(card)}
+              style={{
+                width: handCardWidth,
+                height: handCardHeight,
+                objectFit: "contain",
+                cursor: queries.canInteractWithOpponentCard(opponent) ? "pointer" : "not-allowed",
+                border: "0.5px solid black",
+                opacity: queries.isCardVisibleToPlayer(card, opponent) ? 1 : 0.6,
+              }}
+            />
+          ))}
+        </div>
+        {renderField(opponent, true)}
+      </div>
+
+      {/* CENTER COLUMN: Deck, Discard, Turn Info, and Actions */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, justifyContent: "center", height: "100%", maxWidth: 180 }}>
+        <DeckPile controls={controls} width={pileCardWidth} height={pileCardHeight} labelStyle={labelStyle} />
+
+        <DiscardPile
+          controls={controls}
+          width={pileCardWidth}
+          height={pileCardHeight}
+          labelStyle={labelStyle}
+          listStyle={{ width: 120 }}
+          rowStyle={{ fontSize: "9px" }}
+          nameStyle={{ fontSize: "8px" }}
+        />
+
+        <div style={{
+          backgroundColor: "#e8e8e8",
+          padding: 3,
+          borderRadius: 2,
+          border: "1px solid black",
+          fontSize: `${smallFontSize}px`,
+          textAlign: "center",
+          minWidth: 100
+        }}>
+          <p style={{ margin: 0 }}>Moves: {queries.getMovesLeft()} / {queries.getMaxMoves()}</p>
+          <p style={{ margin: 0 }}>Turn: {queries.getTurnType()}</p>
         </div>
 
-        {/* CENTER COLUMN: Deck, Discard, Turn Info, and Actions */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, justifyContent: "center", height: "100%" }}>
-          {/* Deck */}
-          <div style={{ textAlign: "center" }}>
-            <p style={{ margin: "1px 0", fontSize: `${smallFontSize}px` }}>Deck ({game.deck.size})</p>
-            <div
-              onClick={() => {
-                if (controller.canDrawCard(currentPlayer)) {
-                  controller.drawCard(currentPlayer);
-                  rerender();
-                }
-              }}
-              style={{
-                width: deckCardWidth,
-                height: deckCardHeight,
-                border: controller.canDrawCard(currentPlayer) ? "2px solid green" : "1px solid black",
-                backgroundColor: "#f5f5f5",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: controller.canDrawCard(currentPlayer) ? "pointer" : "not-allowed",
-                overflow: "hidden",
-                fontSize: "8px"
-              }}
-            >
-              {game.deck.size > 0 ? (
-                <img
-                  src={cardBackUrl(game.deck.peek())}
-                  alt="Deck"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover"
-                  }}
-                />
-              ) : (
-                <span>Empty</span>
-              )}
-            </div>
+        <TurnControls controls={controls} discardLabel="Discard Extra" buttonStyle={{ padding: "4px 8px", fontSize: "10px" }} />
+
+        <MessageBanner message={controls.message} onDismiss={controls.dismissMessage} style={{ fontSize: `${smallFontSize}px` }} />
+      </div>
+
+      {/* RIGHT COLUMN: Current Player */}
+      <div style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", minWidth: 0, height: "100%", overflow: "hidden" }}>
+        <h4 style={{ margin: "1px 0", fontSize: `${headerFontSize}px` }}>{currentPlayer.id}</h4>
+
+        {/* Scrollable area: field + hand */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ marginBottom: 3 }}>
+            {renderField(currentPlayer, false)}
           </div>
 
-          {/* Discard Pile */}
-          <div style={{ textAlign: "center", position: "relative" }}>
-            <p style={{ margin: "1px 0", fontSize: `${smallFontSize}px` }}>Discard ({game.discardPile.length})</p>
-            <div
-              onClick={() => {
-                if (game.discardPile.length > 0) {
-                  setDiscardPileExpanded(!discardPileExpanded);
-                }
-              }}
-              style={{
-                width: deckCardWidth,
-                height: deckCardHeight,
-                border: "1px solid black",
-                backgroundColor: "#f5f5f5",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                cursor: game.discardPile.length > 0 ? "pointer" : "default",
-                fontSize: "8px"
-              }}
-            >
-              {game.discardPile.length > 0 ? (
-                <img
-                  src={cardFrontUrl(game.discardPile[game.discardPile.length - 1])}
-                  alt="Discard"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover"
-                  }}
-                />
-              ) : (
-                <span>Empty</span>
-              )}
-            </div>
-
-            {/* Expanded Discard Pile */}
-            {discardPileExpanded && game.discardPile.length > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 100,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                  padding: 6,
-                  backgroundColor: "#f9f9f9",
-                  border: "1px solid black",
-                  borderRadius: 2,
-                  maxHeight: 250,
-                  overflowY: "auto",
-                  zIndex: 10,
-                  width: 120
-                }}
-              >
-                {[...game.discardPile].reverse().map((card) => (
-                  <div
-                    key={card.instanceId}
-                    onClick={() => {
-                      const result = controller.selectDiscardPileCard(card);
-
-                      if (!result.success) {
-                        alert(`Cannot place card: ${result.reason}`);
-                        return;
-                      }
-
-                      setDiscardPileExpanded(false);
-                      rerender();
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      padding: 4,
-                      backgroundColor: "white",
-                      border: "0.5px solid #ccc",
-                      borderRadius: 2,
-                      cursor: controller.canInteractWithDiscardPileCard(card) ? "pointer" : "not-allowed",
-                      opacity: controller.canInteractWithDiscardPileCard(card) ? 1 : 0.5,
-                      fontSize: "9px"
-                    }}
-                  >
-                    <img
-                      src={cardFrontUrl(card)}
-                      alt={card.name}
-                      style={{
-                        width: 25,
-                        height: 30,
-                        objectFit: "contain",
-                        border: "0.5px solid black"
-                      }}
-                    />
-                    <span style={{ fontSize: "8px" }}>{card.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Turn Info Box */}
-          <div style={{ 
-            backgroundColor: "#e8e8e8", 
-            padding: 3, 
-            borderRadius: 2, 
-            border: "1px solid black",
-            fontSize: `${smallFontSize}px`,
-            textAlign: "center",
-            minWidth: 100
-          }}>
-            <p style={{ margin: "0px 0" }}>Moves: {controller.getMovesLeft()} / {controller.getMaxMoves()}</p>
-            <p style={{ margin: "0px 0" }}>Turn: {controller.getTurnType()}</p>
-          </div>
-
-          {/* Turn Actions: Discard / End Turn */}
-          <div>
-            {controller.hasExtraHandCards(currentPlayer) && controller.getPendingAction() !== "discardExtraCards" ? (
-              <button
-                onClick={() => {
-                  const result = controller.startDiscardPhase();
-                  if (!result.success) {
-                    alert(result.reason);
-                  }
-                  rerender();
-                }}
-                style={{ padding: "4px 8px", fontSize: "10px" }}
-              >
-                Discard Extra
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  // The controller also plays the AI's turns and notifies us as they happen
-                  const endResult = controller.finishTurn();
-                  if (!endResult.success) {
-                    alert(endResult.reason);
-                    return;
-                  }
-                  rerender();
-                }}
-                disabled={controller.hasExtraHandCards(currentPlayer) || !controller.canEndTurn()}
-                style={{ padding: "4px 8px", fontSize: "10px" }}
-              >
-                End Turn
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: Current Player */}
-        <div style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", minWidth: 0, height: "100%", overflow: "hidden" }}>
-          <h4 style={{ margin: "1px 0", fontSize: `${headerFontSize}px` }}>{currentPlayer.id}</h4>
-
-          {/* Scrollable area: field + hand */}
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            <div style={{ marginBottom: 3 }}>
-              {renderField(currentPlayer.field, false, true)}
-            </div>
-
-            <p style={{ margin: "0px 0", fontSize: `${smallFontSize}px` }}>Hand ({currentPlayer.hand.length})</p>
-            <div style={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center", marginBottom: 3 }}>
-              {currentPlayer.hand.map((card) => (
-                <img
+          <p style={{ margin: 0, fontSize: `${smallFontSize}px` }}>Hand ({currentPlayer.hand.length})</p>
+          <div style={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center", marginBottom: 3 }}>
+            {currentPlayer.hand.map((card) => {
+              const selected = queries.getSelectedCard() === card;
+              const playable = queries.canPlayHandCard(currentPlayer, card);
+              return (
+                <CardImage
                   key={card.instanceId}
                   className="hand-card-image"
-                  src={cardFrontUrl(card)}
-                  alt={card.name}
+                  controls={controls}
+                  card={card}
+                  owner={currentPlayer}
+                  // Discards in the discard phase, otherwise selects or deselects the card
+                  onClick={() => controls.clickHandCard(card)}
                   style={{
                     width: handCardWidth,
                     height: handCardHeight,
                     objectFit: "contain",
-                    cursor: controller.canPlayHandCard(currentPlayer, card) ? "pointer" : "not-allowed",
-                    border: controller.getSelectedCard() === card ? "1.5px solid yellow" : "0.5px solid black",
-                    opacity: controller.canPlayHandCard(currentPlayer, card) ? 1 : 0.5,
-                    transform: controller.getSelectedCard() === card ? "scale(1.05)" : "scale(1)",
+                    cursor: playable ? "pointer" : "not-allowed",
+                    border: selected ? "1.5px solid yellow" : "0.5px solid black",
+                    opacity: playable ? 1 : 0.5,
+                    transform: selected ? "scale(1.05)" : "scale(1)",
                     transition: "all 0.2s"
                   }}
-                  onClick={() => {
-                    // Discards in the discard phase, otherwise selects or deselects the card
-                    const result = controller.clickHandCard(currentPlayer, card);
-                    if (!result.success) {
-                      alert(`Cannot play card: ${result.reason}`);
-                      return;
-                    }
-                    rerender();
-                  }}
                 />
-              ))}
-            </div>
+              );
+            })}
           </div>
-
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 }
