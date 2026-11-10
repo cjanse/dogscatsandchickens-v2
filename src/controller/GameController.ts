@@ -58,6 +58,17 @@ export class GameController {
     this.updateMaxMovesPerTurn();
   }
 
+  /**
+   * Wraps an already-built GameBoard without shuffling or dealing.
+   * Intended for tests that need an exact starting state.
+   */
+  static fromBoard(board: GameBoard): GameController {
+    const controller = new GameController({}, {});
+    controller.game = board;
+    controller.updateMaxMovesPerTurn();
+    return controller;
+  }
+
   private updateMaxMovesPerTurn(): void {
     // First turn for each player has 1 move, subsequent turns have 2 moves
     const currentPlayer = this.game.currentPlayer;
@@ -787,9 +798,10 @@ playCard(
 
   canPlayHandAction(_player: Player, card: ActionCard): boolean{
     switch (card.actionType) {
-      case "powerOfTea":
+      case "powerOfTea": {
         const playablePlaces = this.game.players[(this.game.currentPlayerIndex + 1) % 2].field.flat().filter(card => card?.facedUp === false)
         return playablePlaces.length > 0;
+      }
       case "messyDorm":
         return true;
       case "birdArmy":

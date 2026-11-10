@@ -29,3 +29,5 @@ dist/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+# Local planning notes
+TODO_PLAN.md

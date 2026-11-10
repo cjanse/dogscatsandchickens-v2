@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { GameController } from "./controller/GameController";
 import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
@@ -9,18 +9,15 @@ export default function GamePageV1Mobile() {
   const [, forceUpdate] = useState(0);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [discardPileExpanded, setDiscardPileExpanded] = useState(false);
-  const controllerRef = useRef<GameController | null>(null);
-  const aiControllerRef = useRef<AIController | null>(null);
-
-  if (!controllerRef.current) {
+  // Created once; the controller is a stable mutable object (views call forceUpdate after mutations).
+  const [{ controller, aiController }] = useState(() => {
     const { cardDefs, deckConfig } = loadV1Assets();
+    // Set to true to play against AI, false for two human players
     const player2IsAI = true;
-    controllerRef.current = new GameController(cardDefs, deckConfig, player2IsAI);
-    aiControllerRef.current = new AIController(controllerRef.current);
-  }
+    const controller = new GameController(cardDefs, deckConfig, player2IsAI);
+    return { controller, aiController: new AIController(controller) };
+  });
 
-  const controller = controllerRef.current;
-  const aiController = aiControllerRef.current;
   const game = controller.getGameState();
 
   const currentPlayerIndex = game.currentPlayerIndex;
@@ -157,7 +154,7 @@ export default function GamePageV1Mobile() {
                   >
                     {cell ? (
                       <img
-                        src={`/assets/v1/cards/${isVisible && cell.facedUp ? (cell as any).front : (cell as any).back}`}
+                        src={`/assets/v1/cards/${isVisible && cell.facedUp ? cell.front : cell.back}`}
                         alt={cell.name}
                         style={{
                           width: "100%",
@@ -199,7 +196,7 @@ export default function GamePageV1Mobile() {
             {opponent.hand.map((card) => (
               <img
                 key={card.instanceId}
-                src={`/assets/v1/cards/${controller.isCardVisibleToPlayer(card, opponentIndex) ? (card as any).front : (card as any).back}`}
+                src={`/assets/v1/cards/${controller.isCardVisibleToPlayer(card, opponentIndex) ? card.front : card.back}`}
                 alt={card.name}
                 style={{
                   width: 50,
@@ -356,7 +353,7 @@ export default function GamePageV1Mobile() {
                     }}
                   >
                     <img
-                      src={`/assets/v1/cards/${(card as any).front}`}
+                      src={`/assets/v1/cards/${card.front}`}
                       alt={card.name}
                       style={{
                         width: 50,
@@ -394,7 +391,7 @@ export default function GamePageV1Mobile() {
             {currentPlayer.hand.map((card) => (
               <img
                 key={card.instanceId}
-                src={`/assets/v1/cards/${(card as any).front}`}
+                src={`/assets/v1/cards/${card.front}`}
                 alt={card.name}
                 style={{
                   width: 50,

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { GameController } from "./controller/GameController";
 import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
@@ -11,8 +11,14 @@ export default function GamePageV1() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [discardPileExpanded, setDiscardPileExpanded] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const controllerRef = useRef<GameController | null>(null);
-  const aiControllerRef = useRef<AIController | null>(null);
+  // Created once; the controller is a stable mutable object (views call forceUpdate after mutations).
+  const [{ controller, aiController }] = useState(() => {
+    const { cardDefs, deckConfig } = loadV1Assets();
+    // Set to true to play against AI, false for two human players
+    const player2IsAI = true;
+    const controller = new GameController(cardDefs, deckConfig, player2IsAI);
+    return { controller, aiController: new AIController(controller) };
+  });
 
   // Listen for window resize events
   useEffect(() => {
@@ -24,16 +30,6 @@ export default function GamePageV1() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  if (!controllerRef.current) {
-    const { cardDefs, deckConfig } = loadV1Assets();
-    // Set to true to play against AI, false for two human players
-    const player2IsAI = true;
-    controllerRef.current = new GameController(cardDefs, deckConfig, player2IsAI);
-    aiControllerRef.current = new AIController(controllerRef.current);
-  }
-
-  const controller = controllerRef.current;
-  const aiController = aiControllerRef.current;
   const game = controller.getGameState();
 
   //Getting player info
@@ -231,8 +227,8 @@ export default function GamePageV1() {
                           className="field-card-image"
                           src={
                             isOpponent
-                              ? `/assets/v1/cards/${isVisible && cell.facedUp ? (cell as any).front : (cell as any).back}`
-                              : `/assets/v1/cards/${(cell as any).front}`
+                              ? `/assets/v1/cards/${isVisible && cell.facedUp ? cell.front : cell.back}`
+                              : `/assets/v1/cards/${cell.front}`
                           }
                           alt={cell.name}
                           style={{
@@ -278,7 +274,7 @@ export default function GamePageV1() {
             {opponent.hand.map((card) => (
               <img
                 key={card.instanceId}
-                src={`/assets/v1/cards/${controller.isCardVisibleToPlayer(card, opponentIndex) ? (card as any).front : (card as any).back}`}
+                src={`/assets/v1/cards/${controller.isCardVisibleToPlayer(card, opponentIndex) ? card.front : card.back}`}
                 alt={card.name}
                 style={{
                   width: handCardWidth,
@@ -433,7 +429,7 @@ export default function GamePageV1() {
                     }}
                   >
                     <img
-                      src={`/assets/v1/cards/${(card as any).front}`}
+                      src={`/assets/v1/cards/${card.front}`}
                       alt={card.name}
                       style={{
                         width: 25,
@@ -526,7 +522,7 @@ export default function GamePageV1() {
                 <img
                   key={card.instanceId}
                   className="hand-card-image"
-                  src={`/assets/v1/cards/${(card as any).front}`}
+                  src={`/assets/v1/cards/${card.front}`}
                   alt={card.name}
                   style={{
                     width: handCardWidth,
