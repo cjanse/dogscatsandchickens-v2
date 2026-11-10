@@ -19,9 +19,9 @@ export function CardImage({ controls, card, owner, onField = false, className, s
   style?: CSSProperties;
   onClick?: () => void;
 }) {
-  const { queries, currentPlayer } = controls;
+  const { queries, viewer } = controls;
   const visible = queries.isCardVisibleToPlayer(card, owner);
-  const ownFaceDown = onField && owner.id === currentPlayer.id && !queries.isFaceUp(card);
+  const ownFaceDown = onField && owner.id === viewer.id && !queries.isFaceUp(card);
 
   return (
     <img

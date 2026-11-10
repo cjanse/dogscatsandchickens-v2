@@ -10,8 +10,8 @@ export function DeckPile({ controls, width, height, borderWidth = 1, labelStyle 
   borderWidth?: number;
   labelStyle?: CSSProperties;
 }) {
-  const { game, queries, currentPlayer } = controls;
-  const canDraw = queries.canDrawCard(currentPlayer);
+  const { game, queries, viewer } = controls;
+  const canDraw = queries.canDrawCard(viewer);
 
   return (
     <div style={{ textAlign: "center" }}>

@@ -12,7 +12,7 @@ import { TurnControls } from "./view/components/TurnControls";
 /** The phone view: one vertical column with fixed card sizes. */
 export default function GamePageV1Mobile() {
   const controls = useGameController();
-  const { queries, currentPlayer, opponent } = controls;
+  const { queries, viewer, opponent } = controls;
   const labelStyle = { margin: "0 0 2px 0", fontSize: "11px" };
 
   function renderField(owner: PlayerView, isOpponent: boolean) {
@@ -111,27 +111,29 @@ export default function GamePageV1Mobile() {
         />
       </div>
 
-      {/* Current Player */}
+      {/* You */}
       <div style={{ textAlign: "center" }}>
         <h4 style={{ margin: "2px 0", fontSize: "14px" }}>
-          {currentPlayer.id} | Moves: {queries.getMovesLeft()} / {queries.getMaxMoves()} | Turn: {queries.getTurnType()}
+          {viewer.id} | {controls.isMyTurn
+            ? <>Moves: {queries.getMovesLeft()} / {queries.getMaxMoves()} | Turn: {queries.getTurnType()}</>
+            : "AI's turn"}
         </h4>
 
         <div style={{ marginBottom: 8 }}>
-          {renderField(currentPlayer, false)}
+          {renderField(viewer, false)}
         </div>
 
-        <p style={{ margin: "4px 0", fontSize: "11px" }}>Hand ({currentPlayer.hand.length})</p>
+        <p style={{ margin: "4px 0", fontSize: "11px" }}>Hand ({viewer.hand.length})</p>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center", marginBottom: 8 }}>
-          {currentPlayer.hand.map((card) => {
+          {viewer.hand.map((card) => {
             const selected = queries.getSelectedCard() === card;
-            const playable = queries.canPlayHandCard(currentPlayer, card);
+            const playable = queries.canPlayHandCard(viewer, card);
             return (
               <CardImage
                 key={card.instanceId}
                 controls={controls}
                 card={card}
-                owner={currentPlayer}
+                owner={viewer}
                 // Discards in the discard phase, otherwise selects or deselects the card
                 onClick={() => controls.clickHandCard(card)}
                 style={{

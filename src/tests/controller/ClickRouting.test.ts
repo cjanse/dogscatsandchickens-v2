@@ -404,6 +404,26 @@ describe("finishTurn and the AI", () => {
     expect(players[1].turnCount).toBe(0);
   });
 
+  it("won't let End Turn end the AI's turn while it is still thinking", () => {
+    const { controller, game, players } = setupAgainstAI();
+    controller.drawCard(players[0]);
+    controller.finishTurn();
+    expect(game.currentPlayerIndex).toBe(1);
+
+    // The AI is on its first turn, so endTurn alone would allow it
+    expect(controller.canEndTurn()).toBe(true);
+    expect(controller.canFinishTurn()).toBe(false);
+    expect(controller.finishTurn()).toEqual({ success: false, reason: "Wait for the AI to finish its turn" });
+    expect(players[1].turnCount).toBe(0);
+
+    // The AI still plays its own turn afterwards
+    vi.advanceTimersByTime(controller.aiTurnDelayMs);
+    expect(players[1].turnCount).toBe(1);
+    expect(game.currentPlayerIndex).toBe(0);
+    // Back to the human (the deck is empty, so no draw is owed): End Turn works again
+    expect(controller.canFinishTurn()).toBe(true);
+  });
+
   it("schedules nothing when the next player is human", () => {
     const { controller } = createTestController({ player2IsAI: false });
 
@@ -500,5 +520,102 @@ describe("isFaceUp", () => {
     expect(controller.isFaceUp(card)).toBe(false);
     card.facedUp = true;
     expect(controller.isFaceUp(card)).toBe(true);
+  });
+});
+
+describe("the viewer during the AI's turn", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The human (player 0) has ended their turn, and the AI (player 1) is "thinking" before it plays. */
+  function duringAITurn() {
+    const humanCard = makeCreature("human_hand");
+    const aiCard = makeCreature("ai_hand", "chicken");
+    const steal = makeAction("Bird_Army_1", "birdArmy");
+    const discarded = makeCreature("in_discard", "chicken");
+    const test = createTestController({
+      deck: [makeCreature("deck_1")],
+      hands: [[humanCard, steal], [aiCard]],
+      turnCounts: [1, 0],
+      player2IsAI: true,
+    });
+    test.game.discard(discarded);
+    test.controller.drawCard(test.players[0]);
+    expect(test.controller.finishTurn().success).toBe(true);
+    expect(test.game.currentPlayerIndex).toBe(1);
+    return { ...test, humanCard, aiCard, steal, discarded };
+  }
+
+  it("keeps the human as the viewer while the AI is the current player", () => {
+    const { controller, players } = duringAITurn();
+
+    expect(controller.isHumanTurn()).toBe(false);
+    expect(controller.getViewer()).toBe(players[0]);
+  });
+
+  it("hides the AI's hand and face-down field cards, and shows the human's own cards", () => {
+    const { controller, players, humanCard, aiCard } = duringAITurn();
+    const aiFieldCard = players[1].field[0][0]!;
+
+    expect(controller.isCardVisibleToPlayer(aiCard, players[1])).toBe(false);
+    expect(controller.isCardVisibleToPlayer(aiFieldCard, players[1])).toBe(false);
+    expect(controller.isCardVisibleToPlayer(humanCard, players[0])).toBe(true);
+  });
+
+  it("refuses every click while the AI is thinking, and changes nothing", () => {
+    const { controller, game, players, humanCard, aiCard, discarded } = duringAITurn();
+    const refusal = { success: false, reason: "Wait for the AI to finish its turn" };
+
+    // The AI's creature could attack on a human's turn: it must not be clickable now
+    expect(controller.canClickField(players[1], 0, 0)).toBe(false);
+    expect(controller.clickField(players[1], 0, 0)).toEqual(refusal);
+    expect(controller.clickHandCard(players[0], humanCard)).toEqual(refusal);
+    expect(controller.clickHandCard(players[1], aiCard)).toEqual(refusal);
+    expect(controller.interactWithOpponentCard(players[1], aiCard)).toEqual(refusal);
+    expect(controller.selectDiscardPileCard(discarded)).toEqual(refusal);
+    expect(controller.drawCard(players[0]).success).toBe(false);
+
+    expect(controller.getSelectedCard()).toBeNull();
+    expect(controller.getPendingAction()).toBeNull();
+    expect(game.turn.movesThisTurn).toBe(0);
+
+    // The AI still plays its own turn
+    vi.advanceTimersByTime(controller.aiTurnDelayMs);
+    expect(players[1].turnCount).toBe(1);
+    expect(controller.isHumanTurn()).toBe(true);
+  });
+});
+
+describe("the viewer otherwise", () => {
+  it("is the current player in hot-seat, so each player sees their own hand on their turn", () => {
+    const p0Card = makeCreature("p0_hand");
+    const p1Card = makeCreature("p1_hand", "chicken");
+    const { controller, players } = createTestController({ hands: [[p0Card], [p1Card]] });
+
+    expect(controller.getViewer()).toBe(players[0]);
+    expect(controller.isCardVisibleToPlayer(p0Card, players[0])).toBe(true);
+    expect(controller.isCardVisibleToPlayer(p1Card, players[1])).toBe(false);
+
+    controller.endTurn();
+
+    expect(controller.isHumanTurn()).toBe(true);
+    expect(controller.getViewer()).toBe(players[1]);
+    expect(controller.isCardVisibleToPlayer(p1Card, players[1])).toBe(true);
+    expect(controller.isCardVisibleToPlayer(p0Card, players[0])).toBe(false);
+  });
+
+  it("still lets the human see the AI's hand through Messy Dorm", () => {
+    const dorm = makeAction("Messy_Dorm_1", "messyDorm");
+    const aiCard = makeCreature("ai_hand", "chicken");
+    const { controller, players } = createTestController({ hands: [[dorm], [aiCard]], player2IsAI: true });
+
+    expect(controller.isCardVisibleToPlayer(aiCard, players[1])).toBe(false);
+    expect(controller.clickHandCard(players[0], dorm).success).toBe(true);
+    expect(controller.isCardVisibleToPlayer(aiCard, players[1])).toBe(true);
   });
 });

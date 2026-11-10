@@ -27,6 +27,9 @@ export type PendingAction = "revealHand" | "stealCard" | "powerOfTea" | "actionR
 /** How long the AI "thinks" before it plays its turn, so the human can follow what happened. */
 const DEFAULT_AI_TURN_DELAY_MS = 500;
 
+/** What the click-level entry points return while the AI is taking its turn. */
+const AI_TURN_REFUSAL: PlayResult = { success: false, reason: "Wait for the AI to finish its turn" };
+
 export class GameController {
   private game: GameBoard;
   private pendingAction: PendingAction = null;
@@ -352,6 +355,11 @@ export class GameController {
     return !this.isGameOver() && !this.mustDrawFirst();
   }
 
+  /** Whether the End Turn button works: the turn can end and it belongs to a human (the AI ends its own). */
+  canFinishTurn(): boolean {
+    return this.canEndTurn() && this.isHumanTurn();
+  }
+
   private canMakeMove(): boolean {
     return !this.isGameOver() && !this.mustDrawFirst() && this.game.movesLeft > 0;
   }
@@ -576,7 +584,7 @@ export class GameController {
    * Mirrors `clickField`.
    */
   canClickField(owner: PlayerView, row: number, col: number): boolean {
-    if (this.isGameOver()) return false;
+    if (this.isGameOver() || !this.isHumanTurn()) return false;
     const current = this.game.currentPlayer;
 
     // An attack is waiting for its target: only the opponent's creatures can be clicked
@@ -605,6 +613,7 @@ export class GameController {
    */
   clickField(owner: PlayerView, row: number, col: number): PlayResult {
     return this.withNotify(() => {
+      if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       if (!this.canClickField(owner, row, col)) {
         return { success: false, reason: "Nothing to do here" };
       }
@@ -636,6 +645,7 @@ export class GameController {
    */
   clickHandCard(playerView: PlayerView, card: Card): PlayResult {
     return this.withNotify(() => {
+      if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       if (this.pendingAction === "discardExtraCards") {
         return this.discardHandCard(card);
       }
@@ -779,6 +789,7 @@ export class GameController {
 
   interactWithOpponentCard(playerView: PlayerView, card: Card): PlayResult {
     return this.withNotify(() => {
+      if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       const player = this.modelPlayer(playerView);
       if (!this.canInteractWithOpponentCard(player)) {
         return { success: false, reason: "Cannot interact with this card" };
@@ -852,6 +863,7 @@ export class GameController {
   /** Always acts for the current player: the revived card goes to their hand. */
   selectDiscardPileCard(card: Card): PlayResult {
     return this.withNotify(() => {
+      if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       const acting = this.actingCard();
       if (!acting) {
         return { success: false, reason: "No card selected" };
@@ -904,10 +916,31 @@ export class GameController {
   //End can interact with Discard pile Logic suite
 
   // Visibility Logic
-  /** Whether the current player can see `card`, which belongs to `owner` (in their hand or on their field). */
+  /**
+   * The player whose side of the table the screen shows. Against the AI it is always the human, even
+   * during the AI's turn, so the AI's hand never shows face up. In hot-seat it is the current player.
+   */
+  getViewer(): PlayerView {
+    return this.viewer();
+  }
+
+  private viewer(): Player {
+    const current = this.game.currentPlayer;
+    if (!current.isAI) return current;
+    return this.game.players.find(p => !p.isAI) ?? current;
+  }
+
+  /** False while the AI is taking its turn. Every click-level entry point refuses then. */
+  isHumanTurn(): boolean {
+    return !this.game.currentPlayer.isAI;
+  }
+
+  /** Whether the viewer (`getViewer()`) can see `card`, which belongs to `owner` (in their hand or on their field). */
   isCardVisibleToPlayer(card: Card, owner: PlayerView): boolean {
+    const viewer = this.viewer();
+
     // Player sees their own cards
-    if (owner.id === this.game.currentPlayer.id) {
+    if (owner.id === viewer.id) {
       return true;
     }
 
@@ -919,7 +952,7 @@ export class GameController {
       e =>
         e.type === "revealHand" &&
         e.targetPlayerId === owner.id &&
-        e.sourcePlayerId === this.game.currentPlayer.id
+        e.sourcePlayerId === viewer.id
     );
 
     if (revealEffect && owner.hand.includes(card)) {
@@ -1005,6 +1038,8 @@ export class GameController {
    */
   finishTurn(): PlayResult {
     return this.withNotify(() => {
+      // The AI ends its own turns. Without this, a click while it "thinks" would end its turn for it.
+      if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       const result = this.endTurn();
       if (result.success) {
         this.scheduleAITurn();

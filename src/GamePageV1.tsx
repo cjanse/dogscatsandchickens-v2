@@ -10,10 +10,10 @@ import { GameOverScreen } from "./view/components/GameOverScreen";
 import { MessageBanner } from "./view/components/MessageBanner";
 import { TurnControls } from "./view/components/TurnControls";
 
-/** The desktop view: opponent on the left, deck and turn info in the middle, current player on the right. */
+/** The desktop view: opponent on the left, deck and turn info in the middle, you on the right. */
 export default function GamePageV1() {
   const controls = useGameController();
-  const { queries, currentPlayer, opponent } = controls;
+  const { queries, viewer, opponent } = controls;
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   useEffect(() => {
@@ -158,28 +158,28 @@ export default function GamePageV1() {
         <MessageBanner message={controls.message} onDismiss={controls.dismissMessage} style={{ fontSize: `${smallFontSize}px` }} />
       </div>
 
-      {/* RIGHT COLUMN: Current Player */}
+      {/* RIGHT COLUMN: You (the viewer) */}
       <div style={{ flex: 1, textAlign: "center", display: "flex", flexDirection: "column", minWidth: 0, height: "100%", overflow: "hidden" }}>
-        <h4 style={{ margin: "1px 0", fontSize: `${headerFontSize}px` }}>{currentPlayer.id}</h4>
+        <h4 style={{ margin: "1px 0", fontSize: `${headerFontSize}px` }}>{viewer.id}</h4>
 
         {/* Scrollable area: field + hand */}
         <div style={{ flex: 1, overflowY: "auto" }}>
           <div style={{ marginBottom: 3 }}>
-            {renderField(currentPlayer, false)}
+            {renderField(viewer, false)}
           </div>
 
-          <p style={{ margin: 0, fontSize: `${smallFontSize}px` }}>Hand ({currentPlayer.hand.length})</p>
+          <p style={{ margin: 0, fontSize: `${smallFontSize}px` }}>Hand ({viewer.hand.length})</p>
           <div style={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center", marginBottom: 3 }}>
-            {currentPlayer.hand.map((card) => {
+            {viewer.hand.map((card) => {
               const selected = queries.getSelectedCard() === card;
-              const playable = queries.canPlayHandCard(currentPlayer, card);
+              const playable = queries.canPlayHandCard(viewer, card);
               return (
                 <CardImage
                   key={card.instanceId}
                   className="hand-card-image"
                   controls={controls}
                   card={card}
-                  owner={currentPlayer}
+                  owner={viewer}
                   // Discards in the discard phase, otherwise selects or deselects the card
                   onClick={() => controls.clickHandCard(card)}
                   style={{

@@ -33,8 +33,15 @@ export interface GameControls {
    * Don't wrap a component that takes them in `React.memo`, or it will never update.
    */
   game: GameView;
-  currentPlayer: PlayerView;
+  /**
+   * The player whose side of the table the screen shows. Against the AI this is always the human, even
+   * while the AI takes its turn. In hot-seat it is whoever's turn it is. Draw the board from this side.
+   */
+  viewer: PlayerView;
+  /** The viewer's opponent. */
   opponent: PlayerView;
+  /** False while the AI takes its turn. The action wrappers do nothing then. */
+  isMyTurn: boolean;
   result: GameResult;
 
   /** Why the last action failed, until the next one succeeds or the player dismisses it. */
@@ -75,32 +82,37 @@ export function useGameController({ player2IsAI = true }: { player2IsAI?: boolea
   useEffect(() => () => controller.dispose(), [controller]);
 
   const game = controller.getGameState();
-  const currentPlayer = game.players[game.currentPlayerIndex];
-  const opponent = game.players[game.currentPlayerIndex === 0 ? 1 : 0];
+  const viewer = controller.getViewer();
+  const opponent = game.players.find(p => p.id !== viewer.id) ?? viewer;
+  const isMyTurn = controller.isHumanTurn();
 
-  function run(result: PlayResult): boolean {
+  /** Runs an action only on the viewer's own turn, and keeps its failure reason as `message`. */
+  function run(action: () => PlayResult): boolean {
+    if (!isMyTurn) return false;
+    const result = action();
     setMessage(result.success ? null : result.reason);
     return result.success;
   }
 
-  const hasExtraHandCards = controller.hasExtraHandCards(currentPlayer);
+  const hasExtraHandCards = isMyTurn && controller.hasExtraHandCards(viewer);
 
   return {
     queries: controller,
     game,
-    currentPlayer,
+    viewer,
     opponent,
+    isMyTurn,
     result: controller.getGameResult(),
     message,
     dismissMessage: () => setMessage(null),
     showDiscardExtra: hasExtraHandCards && controller.getPendingAction() !== "discardExtraCards",
-    canFinishTurn: !hasExtraHandCards && controller.canEndTurn(),
-    clickField: (owner, row, col) => { run(controller.clickField(owner, row, col)); },
-    clickHandCard: card => { run(controller.clickHandCard(currentPlayer, card)); },
-    clickOpponentHandCard: card => { run(controller.interactWithOpponentCard(opponent, card)); },
-    clickDiscardPileCard: card => run(controller.selectDiscardPileCard(card)),
-    drawCard: () => { run(controller.drawCard(currentPlayer)); },
-    startDiscardPhase: () => { run(controller.startDiscardPhase()); },
-    finishTurn: () => { run(controller.finishTurn()); },
+    canFinishTurn: !hasExtraHandCards && controller.canFinishTurn(),
+    clickField: (owner, row, col) => { run(() => controller.clickField(owner, row, col)); },
+    clickHandCard: card => { run(() => controller.clickHandCard(viewer, card)); },
+    clickOpponentHandCard: card => { run(() => controller.interactWithOpponentCard(opponent, card)); },
+    clickDiscardPileCard: card => run(() => controller.selectDiscardPileCard(card)),
+    drawCard: () => { run(() => controller.drawCard(viewer)); },
+    startDiscardPhase: () => { run(() => controller.startDiscardPhase()); },
+    finishTurn: () => { run(() => controller.finishTurn()); },
   };
 }

@@ -9,7 +9,7 @@ import { TurnControls } from "./view/components/TurnControls";
 /** Text-only debug view: every field slot is shown, and cards are listed by name. */
 export default function GamePageV1Diagnostics() {
   const controls = useGameController();
-  const { game, queries, currentPlayer, opponent } = controls;
+  const { game, queries, viewer, opponent } = controls;
 
   function renderField(owner: PlayerView, isOpponent: boolean) {
     const fieldRows = fieldRowsWithPlaceholders(owner.field);
@@ -56,7 +56,7 @@ export default function GamePageV1Diagnostics() {
       <h1>Dogs, Cats, and Chickens (v1) - Diagnostics</h1>
 
       <p>Deck size: {game.deck.size}</p>
-      <p>Current player: {currentPlayer.id}</p>
+      <p>Current player: {game.players[game.currentPlayerIndex].id}{controls.isMyTurn ? "" : " (AI)"}</p>
 
       {/* Opponent */}
       <div style={{ marginBottom: 32 }}>
@@ -84,23 +84,23 @@ export default function GamePageV1Diagnostics() {
         {renderField(opponent, true)}
       </div>
 
-      {/* Current Player */}
+      {/* You (the viewer) */}
       <div>
-        <h2>{currentPlayer.id} (Your Turn)</h2>
+        <h2>{viewer.id} (You)</h2>
 
         <div style={{ marginBottom: 8 }}>
-          {renderField(currentPlayer, false)}
+          {renderField(viewer, false)}
         </div>
 
-        <p>Hand ({currentPlayer.hand.length})</p>
+        <p>Hand ({viewer.hand.length})</p>
         <ul>
-          {currentPlayer.hand.map((card) => {
+          {viewer.hand.map((card) => {
             const selected = queries.getSelectedCard() === card;
             return (
               <li
                 key={card.instanceId}
                 style={{
-                  cursor: queries.canPlayHandCard(currentPlayer, card) ? "pointer" : "not-allowed",
+                  cursor: queries.canPlayHandCard(viewer, card) ? "pointer" : "not-allowed",
                   backgroundColor: selected ? "yellow" : "transparent",
                   fontWeight: selected ? "bold" : "normal"
                 }}
@@ -115,7 +115,7 @@ export default function GamePageV1Diagnostics() {
 
         <button
           onClick={controls.drawCard}
-          style={{ cursor: queries.canDrawCard(currentPlayer) ? "pointer" : "not-allowed" }}
+          style={{ cursor: queries.canDrawCard(viewer) ? "pointer" : "not-allowed" }}
         >
           Draw Card
         </button>
