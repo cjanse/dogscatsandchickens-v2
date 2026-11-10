@@ -4,7 +4,7 @@ import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
 import type { Card } from "./model/cards/Card";
 
-export default function GamePage() {
+export default function GamePageV1Diagnostics() {
   const [, forceUpdate] = useState(0);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const controllerRef = useRef<GameController | null>(null);
@@ -178,7 +178,7 @@ export default function GamePage() {
   else {
     return (
       <div style={{ padding: 16 }}>
-        <h1>Dogs, Cats, and Chickens (v1)</h1>
+        <h1>Dogs, Cats, and Chickens (v1) - Diagnostics</h1>
 
         <p>Deck size: {game.deck.size}</p>
         <ul>
@@ -341,7 +341,7 @@ export default function GamePage() {
                 if (currentGame.currentPlayer.isAI) {
                   // Use setTimeout to allow re-render before AI executes
                   setTimeout(() => {
-                    aiController.executeAITurn();
+                    (aiController as AIController).executeAITurn();
                     controller.endTurn();
                     rerender();
                     

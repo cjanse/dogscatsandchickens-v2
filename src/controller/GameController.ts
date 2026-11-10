@@ -410,8 +410,6 @@ playCard(
   {
     const loserField = loser.field;
     const loserRow = loserField[loseRowIndex];
-    const winnerField = winner.field;
-    const winnerRow = winnerField[winRowIndex];
 
     let creatureSurvives = false;
 
@@ -556,7 +554,7 @@ playCard(
   }
 
   private resolvePowerOfTea(
-  player: Player,
+  _player: Player,
   card: ActionCard,
   row: number,
   col: number
@@ -639,7 +637,7 @@ playCard(
 
   canAttackWith(row: number, col: number): boolean {
     const player = this.game.currentPlayer;
-    const creature = player.field[row]?.[col];
+    const creature = player.field[row]?.[col] as CreatureCard;
     
     if (!creature || creature.type !== "creature") {
       return false;
@@ -743,7 +741,7 @@ playCard(
     return {success: true};
   }
 
-  private resolveMessyDorm(player: Player, card: ActionCard): PlayResult {
+  private resolveMessyDorm(player: Player, _card: ActionCard): PlayResult {
     const opponent = this.game.players.find(p => p !== player);
     if (!opponent) {
       return { success: false, reason: "Opponent not found" };
@@ -760,7 +758,7 @@ playCard(
     return { success: true };
     }
 
-  private resolveBirdArmy(player: Player, card: ActionCard): PlayResult {
+  private resolveBirdArmy(_player: Player, _card: ActionCard): PlayResult {
     this.pendingAction = "stealCard";
     return { success: true };
   }
@@ -779,7 +777,7 @@ playCard(
     }
   }
 
-  canPlayHandUpgrade(player: Player, card: Card): boolean {
+  canPlayHandUpgrade(player: Player, _card: Card): boolean {
     const playableRows = player.field.filter(row => 
       row[3] == null && (row[0]?.type === 'creature' || row[1]?.type === 'creature')
     )
@@ -787,7 +785,7 @@ playCard(
     return playableRows.length > 0;
   }
 
-  canPlayHandAction(player: Player, card: ActionCard): boolean{
+  canPlayHandAction(_player: Player, card: ActionCard): boolean{
     switch (card.actionType) {
       case "powerOfTea":
         const playablePlaces = this.game.players[(this.game.currentPlayerIndex + 1) % 2].field.flat().filter(card => card?.facedUp === false)
@@ -863,7 +861,7 @@ playCard(
   //End interact with opponent hand
 
   //can interact with Opponent Card Logic suite
-  canInteractWithOpponentCard(player: Player, card: Card): boolean {
+  canInteractWithOpponentCard(player: Player, _card: Card): boolean {
     if (this.isGameOver()) return false;
     if (player === this.game.currentPlayer) return false;
     return this.pendingAction === "stealCard";
@@ -901,7 +899,7 @@ playCard(
 
 
   //Can interact with Discard pile Logic suite
-  canInteractWithDiscardPileCard(player: Player, card: Card): boolean {
+  canInteractWithDiscardPileCard(_player: Player, card: Card): boolean {
     if (this.isGameOver()) return false;
     switch (card.type) {
       case "creature":

@@ -40,3 +40,28 @@
 .read-the-docs {
   color: #888;
 }
+
+.field-card-container {
+  position: relative;
+  overflow: visible;
+}
+
+.field-card-image {
+  transition: transform 0.15s ease-out;
+}
+
+.field-card-container:hover .field-card-image {
+  transform: scale(3);
+  position: relative;
+  z-index: 10;
+}
+
+.hand-card-image {
+  transition: transform 0.15s ease-out;
+}
+
+.hand-card-image:hover {
+  transform: scale(3);
+  position: relative;
+  z-index: 10;
+}

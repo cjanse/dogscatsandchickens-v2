@@ -6,8 +6,8 @@ import { Card } from "./Card";
 export class UpgradeCard extends Card {
   upgradeType: UpgradeType;
 
-  constructor(id: string, name: string, upgradeType: UpgradeType, instanceId?: string) {
-    super(id, name, "upgrade", instanceId);
+  constructor(id: string, name: string, front: string, back: string, upgradeType: UpgradeType, instanceId?: string) {
+    super(id, name, "upgrade", front, back, instanceId);
     this.upgradeType = upgradeType;
   }
 
@@ -15,7 +15,7 @@ export class UpgradeCard extends Card {
     return true;
   }
 
-  onPlay(board: GameBoard, player: Player) {
+  onPlay(_board: GameBoard, _player: Player) {
     // placement handled elsewhere
   }
 }

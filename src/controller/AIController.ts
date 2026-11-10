@@ -1,7 +1,6 @@
 import type { GameController } from "./GameController";
 import type { Player } from "../model/game/Player";
 import type { Card } from "../model/cards/Card";
-import type { CreatureCard } from "../model/cards/CreatureCard";
 
 interface Move {
   type: "placeCard" | "attack" | "draw";
@@ -13,7 +12,11 @@ interface Move {
 }
 
 export class AIController {
-  constructor(private gameController: GameController) {}
+  private gameController: GameController;
+
+  constructor(gameController: GameController) {
+    this.gameController = gameController;
+  }
 
   /**
    * Execute a random valid move for the AI player
@@ -56,22 +59,14 @@ export class AIController {
   private getValidMoves(player: Player): Move[] {
     const moves: Move[] = [];
 
-    // Check for playable hand cards
+    // Check for valid card placements (creatures and upgrades)
     for (const card of player.hand) {
-      if (this.gameController.canPlayHandCard(player, card)) {
-        // For now, we won't use action cards in dumb AI
-        if (card.type === "creature") {
-          moves.push({ type: "placeCard", card });
-        }
-      }
-    }
+      // For now, we won't use action cards in dumb AI
+      if (card.type !== "creature" && card.type !== "upgrade") continue;
 
-    // Check for valid creature placements
-    for (const card of player.hand) {
-      if (card.type !== "creature") continue;
-
+      // Check all possible positions
       for (let row = 0; row < player.field.length; row++) {
-        for (let col = 0; col < 2; col++) {
+        for (let col = 0; col < 4; col++) {
           if (
             this.gameController.canPlayCard(
               player.id,

@@ -1,6 +1,6 @@
 import type { CardData } from "../model/types/CardData";
-import cardsJson from "../assets/v1/cards/cards.json";
-import deckJson from "../assets/v1/cards/deck.json";
+import cardsJson from "../assets/v1/cards.json";
+import deckJson from "../assets/v1/deck.json";
 import type { UpgradeType } from "../model/types/UpgradeType";
 import type { MatchingAbilityType } from "../model/types/MatchingAbilityType";
 import type { ActionType } from "../model/types/ActionType";

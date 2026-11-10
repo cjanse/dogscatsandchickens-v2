@@ -9,8 +9,8 @@ export class CreatureCard extends Card {
   matchingAbilityType: MatchingAbilityType;
   matched: boolean = false;
 
-  constructor(id: string, name: string, creatureType: CreatureType, matchingAbilityType: MatchingAbilityType, instanceId?: string) {
-    super(id, name, "creature", instanceId);
+  constructor(id: string, name: string, front:string, back: string, creatureType: CreatureType, matchingAbilityType: MatchingAbilityType, instanceId?: string) {
+    super(id, name, "creature", front, back, instanceId);
     this.creatureType = creatureType;
     this.matchingAbilityType = matchingAbilityType;
   }
@@ -19,7 +19,7 @@ export class CreatureCard extends Card {
     return true;
   }
 
-  onPlay(board: GameBoard, player: Player) {
+  onPlay(_board: GameBoard, _player: Player) {
     // placement handled elsewhere
   }
 }
