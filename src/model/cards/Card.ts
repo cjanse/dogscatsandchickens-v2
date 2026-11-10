@@ -20,6 +20,11 @@ export abstract class Card {
     this.instanceId = instanceId ?? crypto.randomUUID();
   }
 
+  /** Clears any state that only makes sense while the card is on the field. Called whenever it leaves the field. */
+  resetFieldState(): void {
+    this.facedUp = false;
+  }
+
   abstract canPlay(board: GameBoard, player: Player): boolean;
   abstract onPlay(board: GameBoard, player: Player): void;
 }

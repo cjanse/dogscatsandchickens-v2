@@ -452,31 +452,44 @@ playCard(
     }
   }
 
+  /**
+   * Triggers the loser's upgrades from the top of the stack (col 3) down, stopping once the
+   * creature is saved or a Revive/Self-Destruct fires. Returns true if the creature survives.
+   *
+   * Every triggered upgrade leaves the field. A triggered Fake Upgrade returns to its owner's
+   * hand, unless a Revive or Self-Destruct also fired in the same stack, in which case it is
+   * discarded. Upgrades that never triggered stay put (creature saved) or go down with the row.
+   */
   private checkUpgrades(winner: Player, winRowIndex: number, loser: Player, loseRowIndex: number): boolean
   {
-    const loserField = loser.field;
-    const loserRow = loserField[loseRowIndex];
-
+    const triggeredCols: number[] = [];
     let creatureSurvives = false;
+    let stackIsDestroyed = false;
 
-    // Activate upgrade if there is an upgrade
-    const upgrade1 = loserRow[3] as UpgradeCard | null;
-    if (upgrade1) {
-      creatureSurvives = this.activateUpgrade(upgrade1, loser, loseRowIndex, winner, winRowIndex);
-      // Get rid of upgrade
-      this.game.discard(upgrade1);
-      loserRow[3] = null;
+    for (const col of [3, 2]) {
+      const upgrade = loser.field[loseRowIndex][col] as UpgradeCard | null;
+      if (!upgrade) continue;
+
+      triggeredCols.push(col);
+      creatureSurvives = this.activateUpgrade(upgrade, loser, loseRowIndex, winner, winRowIndex);
+      if (creatureSurvives) break;
+      //self destruct and revive do not stack
+      if (upgrade.upgradeType === "selfDestruct" || upgrade.upgradeType === "revive") {
+        stackIsDestroyed = true;
+        break;
+      }
     }
-    //self destruct and revive do not stack
-    if (upgrade1?.upgradeType === "selfDestruct" || upgrade1?.upgradeType === "revive") {
-      return creatureSurvives;
-    }
-    const upgrade2 = loserRow[2] as UpgradeCard | null;
-    if (!creatureSurvives && upgrade2) {
-      creatureSurvives = this.activateUpgrade(upgrade2, loser, loseRowIndex, winner, winRowIndex);
-      // Get rid of upgrade
-      this.game.discard(upgrade2);
-      loserRow[2] = null;
+
+    for (const col of triggeredCols) {
+      const upgrade = loser.field[loseRowIndex][col] as UpgradeCard;
+      const returnsToHand = upgrade.upgradeType === "fakeUpgrade" && !stackIsDestroyed;
+      const removed = loser.removeFromField(loseRowIndex, col);
+      if (!removed) continue;
+      if (returnsToHand) {
+        loser.addToHand(removed);
+      } else {
+        this.game.discard(removed);
+      }
     }
 
     return creatureSurvives;
@@ -501,10 +514,9 @@ playCard(
 
   private resolveUpgradeRevive(loser: Player, loseRowIndex: number): void {
     for (let col = 0; col < 2; col++) {
-      const card = loser.field[loseRowIndex][col];
+      const card = loser.removeFromField(loseRowIndex, col);
       if (card) {
-        loser.addToHand(card as Card);
-        loser.field[loseRowIndex][col] = null;
+        loser.addToHand(card);
       }
     }
   }
@@ -512,12 +524,11 @@ playCard(
   //handles losing creature
   private discardLosingRow(player: Player, rowIndex: number): void {
     const field = player.field;
-    const row = field[rowIndex];
 
-    for (let i = 0; i < row.length; i++) {
-      if (row[i]) {
-        this.game.discard(row[i]!);
-        row[i] = null;
+    for (let col = 0; col < field[rowIndex].length; col++) {
+      const removed = player.removeFromField(rowIndex, col);
+      if (removed) {
+        this.game.discard(removed);
       }
     }
 

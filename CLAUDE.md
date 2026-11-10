@@ -55,6 +55,7 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 - **Field layout:** `Player.field` is `(Card | null)[][]`. Each row is one creature slot laid out as `[creature, matchingTwin, upgrade (bottom), upgrade (top)]`:
   - cols 0–1 hold creatures, and a twin in the other column makes a matched pair.
   - cols 2–3 hold upgrades. Col 3 can only be filled once col 2 is filled, and **col 3 triggers first** (it is the top of the stack).
+  - Take cards off the field with `Player.removeFromField(row, col)`, never `row[i] = null`. It resets `facedUp` and `matched`, so the card is clean whether it goes to the hand or the discard pile.
   - `Player.playToField` adds an empty row at the top or bottom whenever a card is placed on an edge row, so there is always an empty row to place into. `discardLosingRow` removes emptied middle rows.
 - **Visibility:** `Card.facedUp` means the card is permanently revealed on the field. Temporary reveals, such as Messy Dorm, live in `GameBoard.temporaryEffects`. Views must call `controller.isCardVisibleToPlayer(card, ownerIndex)` and must not read `facedUp` directly.
 - **Card images:** `Card.front` and `Card.back` hold image filenames from cards.json. The back image depends on the card type (`creature.jpg`, `upgrade.jpg`, `action.jpg`).
@@ -97,9 +98,9 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] **Discard pile:** the guard in `selectDiscardPileCard` is inverted (`!canInteract && selectedCardId != null`). Clicking a card with nothing selected still uses a move.
 - [x] **Moves counted too early:** `selectDiscardPileCard` and `interactWithOpponentCard` add to `movesThisTurn` before checking that the action worked.
 - [x] **Recovery turn:** `canDrawCard` requires `movesThisTurn == 0`. After a recovery move puts a creature on the field, the player can never draw.
-- [ ] **Fake Upgrade** is discarded. It should go back to its owner's hand, unless a Revive also triggers, in which case it is discarded.
+- [x] **Fake Upgrade** is discarded. It should go back to its owner's hand, unless a Revive or Self-Destruct also triggers (or its creature attacks and loses), in which case it is discarded.
 - [ ] **Counter Attack** behaves exactly like Defense. It should also defeat the attacker when the defender's type beats the attacker's.
-- [ ] **Revive** returns cards to the hand still marked `matched` (and `facedUp`). Reset both whenever a card leaves the field.
+- [x] **Revive** returns cards to the hand still marked `matched` (and `facedUp`). Reset both whenever a card leaves the field. (Done in the model: `Player.removeFromField` calls `Card.resetFieldState()`.)
 - [x] **AI turn loop:** the AI ignores the first-turn rule and the recovery-turn draw.
 
 ### 2. MVC cleanup
