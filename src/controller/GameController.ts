@@ -829,16 +829,21 @@ playCard(
     if (!selectedCardId) {
       return { success: false, reason: "No card selected" };
     }
-    const pendingAction: PendingAction = this.pendingAction;
-    this.resetTemporaryEffectsIfNeeded();
 
-    //Increase move counter
-    this.movesThisTurn += 1;
+    switch (this.pendingAction) {
+      case "stealCard": {
+        // Validate before touching any state so a failed attempt costs nothing
+        if (!player.hand.some(c => c.type === card.type)) {
+          return { success: false, reason: "No cards of that type to steal" };
+        }
 
-    switch (pendingAction) {
-      case "stealCard":
-        // Remove card from opponent's hand
-        return this.resolveSteal(player, selectedCardId as string, card);
+        this.resetTemporaryEffectsIfNeeded();
+        const result = this.resolveSteal(player, selectedCardId, card);
+        if (result.success) {
+          this.movesThisTurn += 1;
+        }
+        return result;
+      }
     }
     return {success: false, reason: "No interaction performed"};
   }
@@ -882,21 +887,25 @@ playCard(
 
   //Interact with Discard pile Logic suite
   selectDiscardPileCard(player: Player, selectedCardId: string | null, card: Card): PlayResult {
-    if (!this.canInteractWithDiscardPileCard(player, card) && selectedCardId != null) {
+    if (selectedCardId == null) {
+      return { success: false, reason: "No card selected" };
+    }
+    if (!this.canInteractWithDiscardPileCard(player, card)) {
       return { success: false, reason: "Cannot interact with this card" };
     }
-    const pendingAction: PendingAction = this.pendingAction;
-    this.resetTemporaryEffectsIfNeeded();
 
-    //Increase move counter
-    this.movesThisTurn += 1;
-
-    switch (pendingAction) {
+    switch (this.pendingAction) {
       case "actionRevive":
       case "creatureRevive":
-      case "upgradeRevive":
+      case "upgradeRevive": {
+        this.resetTemporaryEffectsIfNeeded();
         // Remove card from discard pile
-        return this.resolveRevive(player, selectedCardId, card);
+        const result = this.resolveRevive(player, selectedCardId, card);
+        if (result.success) {
+          this.movesThisTurn += 1;
+        }
+        return result;
+      }
     }
     return {success: false, reason: "No interaction performed"};
   }
@@ -913,6 +922,7 @@ playCard(
   //Can interact with Discard pile Logic suite
   canInteractWithDiscardPileCard(_player: Player, card: Card): boolean {
     if (this.isGameOver()) return false;
+    if (!this.game.discardPile.includes(card)) return false;
     switch (card.type) {
       case "creature":
         return this.pendingAction === "creatureRevive";
@@ -990,11 +1000,14 @@ playCard(
     // Increment current player's turn count for next turn
     currentPlayer.turnCount++;
 
+    // Clear temporary effects first: clearing a Messy Dorm reveal charges a move,
+    // and that charge must not carry over into the next player's turn.
+    this.resetTemporaryEffectsIfNeeded();
+
     this.movesThisTurn = 0;
     this.turnType = "reinforce";
     this.hasDrawn = false;
     this.allowExtraAttack = false;
-    this.resetTemporaryEffectsIfNeeded();
 
     // LOSS CHECK
     if (this.checkLossCondition(currentPlayer)) {

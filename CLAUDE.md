@@ -93,9 +93,9 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] Update the README folder structure. Images now live in `public/assets/v1/cards/`.
 
 ### 1. Bugs
-- [ ] **Messy Dorm + End Turn:** `endTurn` resets `movesThisTurn` to 0, then `resetTemporaryEffectsIfNeeded` → `clearRevealIfNeeded` adds 1 back. The next player starts with a move already used and can't draw or attack.
-- [ ] **Discard pile:** the guard in `selectDiscardPileCard` is inverted (`!canInteract && selectedCardId != null`). Clicking a card with nothing selected still uses a move.
-- [ ] **Moves counted too early:** `selectDiscardPileCard` and `interactWithOpponentCard` add to `movesThisTurn` before checking that the action worked.
+- [x] **Messy Dorm + End Turn:** `endTurn` resets `movesThisTurn` to 0, then `resetTemporaryEffectsIfNeeded` → `clearRevealIfNeeded` adds 1 back. The next player starts with a move already used and can't draw or attack.
+- [x] **Discard pile:** the guard in `selectDiscardPileCard` is inverted (`!canInteract && selectedCardId != null`). Clicking a card with nothing selected still uses a move.
+- [x] **Moves counted too early:** `selectDiscardPileCard` and `interactWithOpponentCard` add to `movesThisTurn` before checking that the action worked.
 - [ ] **Recovery turn:** `canDrawCard` requires `movesThisTurn == 0`. After a recovery move puts a creature on the field, the player can never draw.
 - [ ] **Fake Upgrade** is discarded. It should go back to its owner's hand, unless a Revive also triggers, in which case it is discarded.
 - [ ] **Counter Attack** behaves exactly like Defense. It should also defeat the attacker when the defender's type beats the attacker's.
