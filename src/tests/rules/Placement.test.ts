@@ -6,7 +6,7 @@ import { makeCreature, makeUpgrade } from "../controller/helpers";
 
 describe("canPlaceCreature", () => {
   it("allows an empty creature slot in col 0 or 1", () => {
-    const player = new Player(0);
+    const player = new Player(0, 1);
     const card = makeCreature("bella", "cat");
     expect(canPlaceCreature(player, card, 0, 0)).toBe(true);
     expect(canPlaceCreature(player, card, 0, 1)).toBe(true);
@@ -14,7 +14,7 @@ describe("canPlaceCreature", () => {
   });
 
   it("only allows the creature's own twin next to it", () => {
-    const player = new Player(0);
+    const player = new Player(0, 1);
     player.field[0][0] = makeCreature("bella", "cat");
     expect(canPlaceCreature(player, makeCreature("bella", "cat"), 0, 1)).toBe(true);
     expect(canPlaceCreature(player, makeCreature("pounce", "cat"), 0, 1)).toBe(false);
@@ -22,9 +22,37 @@ describe("canPlaceCreature", () => {
   });
 });
 
-describe("canPlaceUpgrade", () => {
-  it("needs a creature in the row, and fills col 2 before col 3", () => {
+describe("canPlaceCreature in a new row", () => {
+  const card = makeCreature("bella", "cat");
+
+  it("allows only row 0 on an empty field", () => {
     const player = new Player(0);
+    expect(canPlaceCreature(player, card, 0, 0)).toBe(true);
+    expect(canPlaceCreature(player, card, -1, 0)).toBe(false);
+    expect(canPlaceCreature(player, card, 1, 0)).toBe(false);
+  });
+
+  it("allows a new row above (-1) and below (field.length) existing rows", () => {
+    const player = new Player(0, 1);
+    player.field[0][0] = makeCreature("pounce", "cat");
+    expect(canPlaceCreature(player, card, -1, 0)).toBe(true);
+    expect(canPlaceCreature(player, card, 1, 1)).toBe(true);
+    expect(canPlaceCreature(player, card, -2, 0)).toBe(false);
+    expect(canPlaceCreature(player, card, 2, 0)).toBe(false);
+    expect(canPlaceCreature(player, card, 1, 2)).toBe(false);
+  });
+});
+
+describe("canPlaceUpgrade", () => {
+  it("never opens a new row", () => {
+    const player = new Player(0, 1);
+    player.field[0][0] = makeCreature();
+    expect(canPlaceUpgrade(player, -1, 2)).toBe(false);
+    expect(canPlaceUpgrade(player, 1, 2)).toBe(false);
+  });
+
+  it("needs a creature in the row, and fills col 2 before col 3", () => {
+    const player = new Player(0, 1);
     expect(canPlaceUpgrade(player, 0, 2)).toBe(false);
 
     player.field[0][0] = makeCreature();
@@ -41,7 +69,7 @@ describe("canPlaceUpgrade", () => {
 
 describe("hasUpgradeSlot", () => {
   it("is true while some creature has fewer than 2 upgrades", () => {
-    const player = new Player(0);
+    const player = new Player(0, 1);
     expect(hasUpgradeSlot(player)).toBe(false);
 
     player.field[0][0] = makeCreature();

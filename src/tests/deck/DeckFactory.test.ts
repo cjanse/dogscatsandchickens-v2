@@ -11,9 +11,7 @@ describe('DeckFactory', () => {
                 name: 'Basic Dog',
                 type: 'creature',
                 creatureType: 'dog',
-                matchingAbilityType: 'alwaysWin',
-                front: 'dog_basic.jpg',
-                back: 'dog_basic.jpg'
+                matchingAbilityType: 'alwaysWin'
             },
         };
 

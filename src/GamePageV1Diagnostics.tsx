@@ -2,6 +2,7 @@ import { useState } from "react";
 import { GameController } from "./controller/GameController";
 import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
+import { fieldRowsWithPlaceholders } from "./app/fieldRows";
 import type { FieldView } from "./model/game/views";
 
 export default function GamePageV1Diagnostics() {
@@ -32,15 +33,15 @@ export default function GamePageV1Diagnostics() {
     field: FieldView,
     isOpponent: boolean
   ) {
-    const visualRows = isOpponent ? [...field].reverse() : field;
+    const fieldRows = fieldRowsWithPlaceholders(field);
+    const visualRows = isOpponent ? [...fieldRows].reverse() : fieldRows;
 
     return (
       <div style={{ display: "flex" }}>
-        {visualRows.map((row, visualRowIndex) => {
-          // Map visual row index back to model row index
-          const modelRowIndex = isOpponent
-            ? field.length - 1 - visualRowIndex
-            : visualRowIndex;
+        {visualRows.map((rowEntry, visualRowIndex) => {
+          // The model row index (-1 and field.length are the new rows above and below the field)
+          const modelRowIndex = rowEntry.modelRow;
+          const row = rowEntry.cells;
 
           const visualCols = isOpponent ? [...row].reverse() : row;
 

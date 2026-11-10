@@ -13,9 +13,7 @@ describe('Player', () => {
             name: 'Basic Dog',
             type: 'creature',
             creatureType: 'dog',
-            matchingAbilityType: 'alwaysWin',
-            front: 'dog_basic.jpg',
-            back: 'dog_basic.jpg'
+            matchingAbilityType: 'alwaysWin'
         };
 
         const card = CardFactory.create(data);
@@ -28,27 +26,83 @@ describe('Player', () => {
         expect(player.hand.length).toBe(0);
     });
 
-    it('can place cards on field', () => {
-        const player = new Player(0);
+    it('starts with no field rows', () => {
+        expect(new Player(0).field).toEqual([]);
+    });
 
-        const data: CardData = {
+    describe('playToField', () => {
+        const dogData = (): CardData => ({
             id: 'dog_basic',
             name: 'Basic Dog',
             type: 'creature',
             creatureType: 'dog',
-            matchingAbilityType: 'alwaysWin',
-            front: 'dog_basic.jpg',
-            back: 'dog_basic.jpg'
-        };
+            matchingAbilityType: 'alwaysWin'
+        });
 
-        const card = CardFactory.create(data);
-        player.addToHand(card);
-        expect(player.hand.length).toBe(1);
-        expect(player.hand[0].id).toBe("dog_basic");
-        player.playToField(card.instanceId, 0, 0);
+        it('opens the first row on an empty field (row 0 = field.length)', () => {
+            const player = new Player(0);
+            const card = CardFactory.create(dogData());
+            player.addToHand(card);
 
-        expect(player.field[1][0]).toBe(card); //Expect card to be in first row due to expandFieldIfNeeded functionality
-        expect(player.hand.length).toBe(0);
+            player.playToField(card.instanceId, 0, 0);
+
+            expect(player.field).toEqual([[card, null, null, null]]);
+            expect(player.hand.length).toBe(0);
+        });
+
+        it('opens a new row below with row = field.length', () => {
+            const player = new Player(0);
+            const first = CardFactory.create(dogData());
+            const second = CardFactory.create({ ...dogData(), id: 'other_dog' });
+            player.addToHand(first);
+            player.addToHand(second);
+
+            player.playToField(first.instanceId, 0, 0);
+            player.playToField(second.instanceId, 1, 0);
+
+            expect(player.field).toHaveLength(2);
+            expect(player.field[1][0]).toBe(second);
+        });
+
+        it('opens a new row above with row = -1', () => {
+            const player = new Player(0);
+            const first = CardFactory.create(dogData());
+            const second = CardFactory.create({ ...dogData(), id: 'other_dog' });
+            player.addToHand(first);
+            player.addToHand(second);
+
+            player.playToField(first.instanceId, 0, 0);
+            player.playToField(second.instanceId, -1, 1);
+
+            expect(player.field).toHaveLength(2);
+            expect(player.field[0][1]).toBe(second);
+            expect(player.field[1][0]).toBe(first);
+        });
+
+        it('does not add rows when playing into an existing row, and detects a matched pair', () => {
+            const player = new Player(0);
+            const first = CardFactory.create(dogData());
+            const twin = CardFactory.create(dogData());
+            player.addToHand(first);
+            player.addToHand(twin);
+
+            player.playToField(first.instanceId, 0, 0);
+            const matched = player.playToField(twin.instanceId, 0, 1);
+
+            expect(player.field).toHaveLength(1);
+            expect(matched?.matchedCard).toBe(twin);
+            expect((first as CreatureCard).matched).toBe(true);
+        });
+
+        it('does nothing for a row that does not exist', () => {
+            const player = new Player(0);
+            const card = CardFactory.create(dogData());
+            player.addToHand(card);
+
+            expect(player.playToField(card.instanceId, 3, 0)).toBeNull();
+            expect(player.field).toEqual([]);
+            expect(player.hand).toEqual([card]);
+        });
     });
 
     describe('removeFromField', () => {
@@ -57,13 +111,11 @@ describe('Player', () => {
             name: 'Basic Dog',
             type: 'creature',
             creatureType: 'dog',
-            matchingAbilityType: 'alwaysWin',
-            front: 'dog_basic.jpg',
-            back: 'creature.jpg'
+            matchingAbilityType: 'alwaysWin'
         });
 
         it('empties the slot and resets facedUp and matched on a creature', () => {
-            const player = new Player(1);
+            const player = new Player(1, 1);
             const card = CardFactory.create(dog()) as CreatureCard;
             player.field[0][0] = card;
             card.facedUp = true;
@@ -78,14 +130,12 @@ describe('Player', () => {
         });
 
         it('resets facedUp on an upgrade', () => {
-            const player = new Player(1);
+            const player = new Player(1, 1);
             const upgrade = CardFactory.create({
                 id: 'fake_1',
                 name: 'Fake',
                 type: 'upgrade',
-                upgradeType: 'fakeUpgrade',
-                front: 'fake.jpg',
-                back: 'upgrade.jpg'
+                upgradeType: 'fakeUpgrade'
             });
             player.field[0][2] = upgrade;
             upgrade.facedUp = true;
@@ -95,7 +145,7 @@ describe('Player', () => {
         });
 
         it('returns null for an empty or out-of-range slot', () => {
-            const player = new Player(1);
+            const player = new Player(1, 1);
             expect(player.removeFromField(0, 0)).toBeNull();
             expect(player.removeFromField(5, 5)).toBeNull();
         });
@@ -107,37 +157,35 @@ describe('Player', () => {
             name: 'Basic Dog',
             type: 'creature',
             creatureType: 'dog',
-            matchingAbilityType: 'alwaysWin',
-            front: 'dog_basic.jpg',
-            back: 'creature.jpg'
+            matchingAbilityType: 'alwaysWin'
         }) as CreatureCard;
-        const emptyRow = () => [null, null, null, null];
 
-        it('returns every card in the row, reset, and deletes a middle row', () => {
+        it('returns every card in the row, reset, and deletes the row', () => {
             const player = new Player(1);
             const left = dog();
             const right = dog();
+            const other = dog();
             left.matched = right.matched = true;
             left.facedUp = right.facedUp = true;
-            player.field = [emptyRow(), [left, right, null, null], emptyRow()];
+            player.field = [[other, null, null, null], [left, right, null, null], [other, null, null, null]];
 
             const removed = player.removeRow(1);
 
             expect(removed).toEqual([left, right]);
             expect(left.matched).toBe(false);
             expect(right.facedUp).toBe(false);
-            expect(player.field).toEqual([emptyRow(), emptyRow()]);
+            expect(player.field).toEqual([[other, null, null, null], [other, null, null, null]]);
         });
 
-        it('keeps the top and bottom rows as empty rows', () => {
+        it('deletes top and bottom rows too, leaving no empty rows', () => {
             const player = new Player(1);
             const top = dog();
             const bottom = dog();
             player.field = [[top, null, null, null], [bottom, null, null, null]];
 
             expect(player.removeRow(0)).toEqual([top]);
-            expect(player.removeRow(1)).toEqual([bottom]);
-            expect(player.field).toEqual([emptyRow(), emptyRow()]);
+            expect(player.removeRow(0)).toEqual([bottom]);
+            expect(player.field).toEqual([]);
         });
 
         it('returns nothing for a row that does not exist', () => {

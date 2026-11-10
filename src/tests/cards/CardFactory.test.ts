@@ -11,9 +11,7 @@ describe('CardFactory', () => {
       id: 'action_basic',
       name: 'Basic Action',
       type: 'action',
-      actionType: 'spirit',
-      front: 'action_basic.jpg',
-      back: 'action.jpg'
+      actionType: 'spirit'
     };
 
     const card = CardFactory.create(data);
@@ -31,9 +29,7 @@ describe('CardFactory', () => {
       name: 'Basic Creature',
       type: 'creature',
       creatureType: 'cat',
-      matchingAbilityType: 'alwaysWin',
-      front: 'creature_basic.jpg',
-      back: 'creature.jpg'
+      matchingAbilityType: 'alwaysWin'
     };
 
     const card = CardFactory.create(data);
@@ -51,9 +47,7 @@ describe('CardFactory', () => {
       id: 'upgrade_basic',
       name: 'Basic Upgrade',
       type: 'upgrade',
-      upgradeType: 'revive',
-      front: 'upgrade_basic.jpg',
-      back: 'upgrade.jpg'
+      upgradeType: 'revive'
     };
 
     const card = CardFactory.create(data);

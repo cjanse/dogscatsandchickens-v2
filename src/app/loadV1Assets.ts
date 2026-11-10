@@ -10,16 +10,18 @@ import type { CreatureType } from "../model/types/CreatureType";
 export function loadV1Assets() {
   const cardDefs: Record<string, CardData> = {};
 
+  // Image filenames in cards.json are read by cardImages.ts, not the model.
   for (const raw of cardsJson) {
     const card: CardData = {
-        ...raw,
+        id: raw.id,
+        name: raw.name,
         type: raw.type as CardType,
         creatureType: raw.creatureType as CreatureType,
         actionType: raw.actionType as ActionType,
         upgradeType: raw.upgradeType as UpgradeType,
         matchingAbilityType: raw.matchingAbilityType as MatchingAbilityType
     };
-    cardDefs[card.id] = card as CardData;
+    cardDefs[card.id] = card;
   }
 
   return {

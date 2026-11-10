@@ -11,7 +11,7 @@ import { makeCreature, makeUpgrade } from "../controller/helpers";
 
 /** Puts one creature (plus optional upgrades in cols 2, 3) in row 0 of each player's field. */
 function setup(attackerType: CreatureType, defenderType: CreatureType, defenderUpgrades: Card[] = []) {
-  const players = [new Player(0), new Player(1)];
+  const players = [new Player(0, 1), new Player(1, 1)];
   const board = new GameBoard(players, new Deck([]));
   const attacker: Combatant = { player: players[0], row: 0, card: makeCreature("a", attackerType) };
   const defender: Combatant = { player: players[1], row: 0, card: makeCreature("d", defenderType) };
@@ -58,7 +58,7 @@ describe("resolveUpgradeStack: Counter Attack", () => {
     expect(resolveUpgradeStack(board, defender, attacker)).toBe(true);
 
     expect(players[1].field[0][0]).toBe(defender.card);
-    expect(players[0].field[0].every(c => c === null)).toBe(true);
+    expect(players[0].field).toEqual([]);
     expect(board.discardPile).toEqual(expect.arrayContaining([attacker.card, counter]));
     expect((attacker.card as CreatureCard).facedUp).toBe(false);
   });

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { GameController } from "./controller/GameController";
 import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
+import { cardBackUrl, cardFrontUrl } from "./app/cardImages";
+import { fieldRowsWithPlaceholders } from "./app/fieldRows";
 import type { FieldView } from "./model/game/views";
 
 export default function GamePageV1Mobile() {
@@ -29,14 +31,14 @@ export default function GamePageV1Mobile() {
   const rerender = () => forceUpdate((n) => n + 1);
 
   function renderField(field: FieldView, isOpponent: boolean) {
-    const visualRows = isOpponent ? [...field].reverse() : field;
+    const fieldRows = fieldRowsWithPlaceholders(field);
+    const visualRows = isOpponent ? [...fieldRows].reverse() : fieldRows;
 
     return (
       <div style={{ display: "flex", justifyContent: "center" }}>
-        {visualRows.map((row, visualRowIndex) => {
-          const modelRowIndex = isOpponent
-            ? field.length - 1 - visualRowIndex
-            : visualRowIndex;
+        {visualRows.map((rowEntry, visualRowIndex) => {
+          const modelRowIndex = rowEntry.modelRow;
+          const row = rowEntry.cells;
 
           const visualCols = isOpponent ? [...row].reverse() : row;
 
@@ -154,7 +156,7 @@ export default function GamePageV1Mobile() {
                   >
                     {cell ? (
                       <img
-                        src={`/assets/v1/cards/${isVisible && cell.facedUp ? cell.front : cell.back}`}
+                        src={isVisible && cell.facedUp ? cardFrontUrl(cell) : cardBackUrl(cell)}
                         alt={cell.name}
                         style={{
                           width: "100%",
@@ -196,7 +198,7 @@ export default function GamePageV1Mobile() {
             {opponent.hand.map((card) => (
               <img
                 key={card.instanceId}
-                src={`/assets/v1/cards/${controller.isCardVisibleToPlayer(card, opponentIndex) ? card.front : card.back}`}
+                src={controller.isCardVisibleToPlayer(card, opponentIndex) ? cardFrontUrl(card) : cardBackUrl(card)}
                 alt={card.name}
                 style={{
                   width: 50,
@@ -255,7 +257,7 @@ export default function GamePageV1Mobile() {
             >
               {game.deck.size > 0 ? (
                 <img
-                  src={`/assets/v1/cards/${game.deck.peek()?.back || "creature.jpg"}`}
+                  src={cardBackUrl(game.deck.peek())}
                   alt="Deck"
                   style={{
                     width: "100%",
@@ -292,7 +294,7 @@ export default function GamePageV1Mobile() {
             >
               {game.discardPile.length > 0 ? (
                 <img
-                  src={`/assets/v1/cards/${game.discardPile[game.discardPile.length - 1]?.front || "creature.jpg"}`}
+                  src={cardFrontUrl(game.discardPile[game.discardPile.length - 1])}
                   alt="Discard"
                   style={{
                     width: "100%",
@@ -353,7 +355,7 @@ export default function GamePageV1Mobile() {
                     }}
                   >
                     <img
-                      src={`/assets/v1/cards/${card.front}`}
+                      src={cardFrontUrl(card)}
                       alt={card.name}
                       style={{
                         width: 50,
@@ -391,7 +393,7 @@ export default function GamePageV1Mobile() {
             {currentPlayer.hand.map((card) => (
               <img
                 key={card.instanceId}
-                src={`/assets/v1/cards/${card.front}`}
+                src={cardFrontUrl(card)}
                 alt={card.name}
                 style={{
                   width: 50,

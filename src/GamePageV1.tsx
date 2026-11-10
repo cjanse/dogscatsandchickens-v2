@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { GameController } from "./controller/GameController";
 import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
+import { cardBackUrl, cardFrontUrl } from "./app/cardImages";
+import { fieldRowsWithPlaceholders } from "./app/fieldRows";
 import type { FieldView } from "./model/game/views";
 
 export default function GamePageV1() {
@@ -71,12 +73,13 @@ export default function GamePageV1() {
     isOpponent: boolean,
     compact: boolean = false
   ) {
-    const visualRows = isOpponent ? [...field].reverse() : field;
+    const fieldRows = fieldRowsWithPlaceholders(field);
+    const visualRows = isOpponent ? [...fieldRows].reverse() : fieldRows;
 
     // Calculate a single dynamicCardWidth/dynamicCardHeight for the entire field
     let maxColsToShow = 1;
     let hasAnyCardsAnywhere = false;
-    visualRows.forEach((row) => {
+    visualRows.forEach(({ cells: row }) => {
       const hasAnyCards = row.some(card => card !== null);
       const hasCreature = row.some(card => card?.type === "creature");
       const hasUpgrade = row.some(card => card?.type === "upgrade");
@@ -102,10 +105,9 @@ export default function GamePageV1() {
 
     return (
       <div style={{ display: "flex", justifyContent: "center", overflowX: "auto", width: "100%" }}>
-        {visualRows.map((row, visualRowIndex) => {
-          const modelRowIndex = isOpponent
-            ? field.length - 1 - visualRowIndex
-            : visualRowIndex;
+        {visualRows.map((rowEntry, visualRowIndex) => {
+          const modelRowIndex = rowEntry.modelRow;
+          const row = rowEntry.cells;
           const visualCols = isOpponent ? [...row].reverse() : row;
           return (
             <div
@@ -227,8 +229,8 @@ export default function GamePageV1() {
                           className="field-card-image"
                           src={
                             isOpponent
-                              ? `/assets/v1/cards/${isVisible && cell.facedUp ? cell.front : cell.back}`
-                              : `/assets/v1/cards/${cell.front}`
+                              ? (isVisible && cell.facedUp ? cardFrontUrl(cell) : cardBackUrl(cell))
+                              : cardFrontUrl(cell)
                           }
                           alt={cell.name}
                           style={{
@@ -274,7 +276,7 @@ export default function GamePageV1() {
             {opponent.hand.map((card) => (
               <img
                 key={card.instanceId}
-                src={`/assets/v1/cards/${controller.isCardVisibleToPlayer(card, opponentIndex) ? card.front : card.back}`}
+                src={controller.isCardVisibleToPlayer(card, opponentIndex) ? cardFrontUrl(card) : cardBackUrl(card)}
                 alt={card.name}
                 style={{
                   width: handCardWidth,
@@ -328,7 +330,7 @@ export default function GamePageV1() {
             >
               {game.deck.size > 0 ? (
                 <img
-                  src={`/assets/v1/cards/${game.deck.peek()?.back || "creature.jpg"}`}
+                  src={cardBackUrl(game.deck.peek())}
                   alt="Deck"
                   style={{
                     width: "100%",
@@ -366,7 +368,7 @@ export default function GamePageV1() {
             >
               {game.discardPile.length > 0 ? (
                 <img
-                  src={`/assets/v1/cards/${game.discardPile[game.discardPile.length - 1]?.front || "creature.jpg"}`}
+                  src={cardFrontUrl(game.discardPile[game.discardPile.length - 1])}
                   alt="Discard"
                   style={{
                     width: "100%",
@@ -429,7 +431,7 @@ export default function GamePageV1() {
                     }}
                   >
                     <img
-                      src={`/assets/v1/cards/${card.front}`}
+                      src={cardFrontUrl(card)}
                       alt={card.name}
                       style={{
                         width: 25,
@@ -526,7 +528,7 @@ export default function GamePageV1() {
                 <img
                   key={card.instanceId}
                   className="hand-card-image"
-                  src={`/assets/v1/cards/${card.front}`}
+                  src={cardFrontUrl(card)}
                   alt={card.name}
                   style={{
                     width: handCardWidth,

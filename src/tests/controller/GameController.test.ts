@@ -10,8 +10,6 @@ const mockCards: Record<string, CardData> = {
     type: "creature",
     creatureType: "dog",
     matchingAbilityType: "alwaysWin",
-    front: "front.jpg",
-    back: "back.jpg",
   },
 };
 

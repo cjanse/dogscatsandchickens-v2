@@ -33,7 +33,7 @@ describe("battles", () => {
     attack(controller);
 
     expect(game.discardPile).toEqual([defender]);
-    expect(players[1].field[0].every(c => c === null)).toBe(true);
+    expect(players[1].field).toEqual([]);
     expect(players[0].field[0][0]).toBe(attacker);
     expect(attacker.facedUp).toBe(true);
   });
@@ -46,7 +46,7 @@ describe("battles", () => {
     attack(controller);
 
     expect(game.discardPile).toEqual([attacker, defense]);
-    expect(players[0].field[0].every(c => c === null)).toBe(true);
+    expect(players[0].field).toEqual([]);
     expect(players[1].field[0][0]).toBe(defender);
     expect(defender.facedUp).toBe(true);
   });
@@ -80,19 +80,23 @@ describe("battles", () => {
     expect(game.discardPile).toHaveLength(2);
   });
 
-  it("removes a defeated middle row but keeps an edge row as an empty row", () => {
+  it("removes the row of a defeated creature, so the field holds no empty rows", () => {
     const { controller, game, players, defender } = setupBattle("dog", "cat");
+    const neighbour = makeCreature("neighbour", "chicken");
     // Put the defender in a middle row
     players[1].field = [
-      [null, null, null, null],
+      [neighbour, null, null, null],
       [defender, null, null, null],
-      [null, null, null, null],
+      [neighbour, null, null, null],
     ];
 
     attack(controller, 1);
 
     expect(game.discardPile).toEqual([defender]);
-    expect(players[1].field).toHaveLength(2);
+    expect(players[1].field).toEqual([
+      [neighbour, null, null, null],
+      [neighbour, null, null, null],
+    ]);
   });
 });
 
@@ -121,8 +125,8 @@ describe("upgrades that save the defender", () => {
 
     expect(game.discardPile).toEqual(expect.arrayContaining([attacker, defender, selfDestruct]));
     expect(game.discardPile).toHaveLength(3);
-    expect(players[0].field[0].every(c => c === null)).toBe(true);
-    expect(players[1].field[0].every(c => c === null)).toBe(true);
+    expect(players[0].field).toEqual([]);
+    expect(players[1].field).toEqual([]);
   });
 });
 

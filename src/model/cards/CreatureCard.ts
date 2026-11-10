@@ -7,8 +7,8 @@ export class CreatureCard extends Card {
   matchingAbilityType: MatchingAbilityType;
   matched: boolean = false;
 
-  constructor(id: string, name: string, front:string, back: string, creatureType: CreatureType, matchingAbilityType: MatchingAbilityType, instanceId?: string) {
-    super(id, name, "creature", front, back, instanceId);
+  constructor(id: string, name: string, creatureType: CreatureType, matchingAbilityType: MatchingAbilityType, instanceId?: string) {
+    super(id, name, "creature", instanceId);
     this.creatureType = creatureType;
     this.matchingAbilityType = matchingAbilityType;
   }

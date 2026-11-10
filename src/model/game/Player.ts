@@ -8,9 +8,12 @@ export class Player implements PlayerView {
     field: (Card | null)[][];
     turnCount: number = 0;
     isAI: boolean = false;
+    private readonly fieldCols: number;
 
-    constructor(id: number, fieldRows = 1, fieldCols = 4, isAI = false) {
+    /** The field starts with `fieldRows` empty rows (none by default). Playing a card into a new row adds one. */
+    constructor(id: number, fieldRows = 0, fieldCols = 4, isAI = false) {
         this.id = id;
+        this.fieldCols = fieldCols;
         this.hand = [];
         this.field = Array.from({ length: fieldRows }, () =>
             Array(fieldCols).fill(null)
@@ -42,7 +45,7 @@ export class Player implements PlayerView {
 
     /**
      * Takes every card out of a row (resetting each one, as removeFromField does) and returns them.
-     * A middle row is then deleted. The top and bottom rows stay, as empty rows to place into.
+     * The row itself is then deleted: the field only ever holds rows with cards in them.
      */
     removeRow(rowIndex: number): Card[] {
         const row = this.field[rowIndex];
@@ -52,16 +55,26 @@ export class Player implements PlayerView {
             const card = this.removeFromField(rowIndex, col);
             if (card) removed.push(card);
         }
-        if (rowIndex !== 0 && rowIndex !== this.field.length - 1) {
-            this.field.splice(rowIndex, 1);
-        }
+        this.field.splice(rowIndex, 1);
         return removed;
     }
 
+    /**
+     * Plays a hand card into a field slot. `row === -1` opens a new row above all rows and
+     * `row === field.length` opens one below; any other row must already exist.
+     */
     playToField(instanceId: string, row: number, col: number) {
         const index = this.hand.findIndex(obj => obj.instanceId === instanceId)
         if (index === -1) return null;
         const playCard = this.hand[index];
+        const width = this.field[0]?.length ?? this.fieldCols;
+        if (row === -1 && this.field.length > 0) {
+            this.field.unshift(new Array(width).fill(null));
+            row = 0;
+        } else if (row === this.field.length) {
+            this.field.push(new Array(width).fill(null));
+        }
+        if (!this.field[row]) return null;
         if (!this.field[row][col]) {
             this.field[row][col] = playCard;
             this.hand = this.hand.filter(c => c !== playCard);
@@ -76,18 +89,6 @@ export class Player implements PlayerView {
                 return { matchedCard: playCard as CreatureCard, otherMatchedCard: otherCard };
             }
         }
-        this.expandFieldIfNeeded(row)
         return null;
-    }
-
-    //Helper function that expands the row as necessary
-    private expandFieldIfNeeded(rowIndex: number) {
-        if (rowIndex === this.field.length - 1) {
-            this.field.push(new Array(this.field[0].length).fill(null));
-        }
-
-        if (rowIndex === 0) {
-            this.field.unshift(new Array(this.field[0].length).fill(null));
-        }
     }
 }

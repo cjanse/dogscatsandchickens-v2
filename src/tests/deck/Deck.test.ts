@@ -10,9 +10,7 @@ describe('Deck', () => {
             name: 'Basic Dog',
             type: 'creature',
             creatureType: 'dog',
-            matchingAbilityType: 'alwaysWin',
-            front: 'dog_basic.jpg',
-            back: 'dog_basic.jpg'
+            matchingAbilityType: 'alwaysWin'
         };
 
         const cards = Array.from({ length: 3 }, () => CardFactory.create(data));
@@ -36,9 +34,7 @@ describe('Deck', () => {
             name: 'Basic Dog',
             type: 'creature',
             creatureType: 'dog',
-            matchingAbilityType: 'alwaysWin',
-            front: 'dog_basic.jpg',
-            back: 'dog_basic.jpg'
+            matchingAbilityType: 'alwaysWin'
         };
 
         const cards = Array.from({ length: 10 }, () => CardFactory.create(data));
@@ -55,7 +51,7 @@ describe('Deck', () => {
     it('peek returns the next card to draw without removing it', () => {
         const data: CardData = {
             id: 'dog_basic', name: 'Basic Dog', type: 'creature', creatureType: 'dog',
-            matchingAbilityType: 'alwaysWin', front: 'dog_basic.jpg', back: 'creature.jpg'
+            matchingAbilityType: 'alwaysWin'
         };
         const cards = Array.from({ length: 2 }, () => CardFactory.create(data));
         const deck = new Deck(cards);

@@ -32,7 +32,7 @@ describe("Fake Upgrade", () => {
     expect(fake.facedUp).toBe(false);
     expect(game.discardPile).not.toContain(fake);
     expect(game.discardPile).toContain(defender);
-    expect(players[1].field[0].every(c => c === null)).toBe(true);
+    expect(players[1].field).toEqual([]);
   });
 
   it("returns to hand and then lets the upgrade underneath trigger", () => {
@@ -84,7 +84,7 @@ describe("Fake Upgrade", () => {
     expect(game.discardPile).toHaveLength(2);
     expect(game.discardPile).toContain(fake);
     expect(game.discardPile).toContain(revive);
-    expect(players[1].field[0].every(c => c === null)).toBe(true);
+    expect(players[1].field).toEqual([]);
   });
 
   it("is discarded, not returned, when it is underneath a Revive", () => {
@@ -98,7 +98,7 @@ describe("Fake Upgrade", () => {
     expect(game.discardPile).toHaveLength(2);
     expect(game.discardPile).toContain(fake);
     expect(game.discardPile).toContain(revive);
-    expect(players[1].field[0].every(c => c === null)).toBe(true);
+    expect(players[1].field).toEqual([]);
   });
 
   it("is discarded, not returned, when a Self-Destruct is underneath it", () => {

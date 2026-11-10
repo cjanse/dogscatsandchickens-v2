@@ -39,7 +39,9 @@ src/
   controller/
     GameController.ts   Checks moves and coordinates them (validators, pendingAction, action cards). Views talk only to this. getGameState() returns a read-only GameView; public methods take PlayerView and look up the real Player by id.
     AIController.ts     Picks random valid moves through GameController's public can*/play* API
-  app/loadV1Assets.ts   Turns cards.json and deck.json into CardData records
+  app/loadV1Assets.ts   Turns cards.json and deck.json into CardData records (no image info)
+  app/cardImages.ts     View-side image lookup: cardFrontUrl(card) by id, cardBackUrl(card) by type
+  app/fieldRows.ts      fieldRowsWithPlaceholders(field): adds the empty rows the UI draws above and below the field
   assets/v1/            cards.json (card definitions) and deck.json (copies per card id; 36 cards total)
   App.tsx               Landing page, then picks a game view
   GamePageV1.tsx            Desktop view with card images (the main view)
@@ -57,9 +59,9 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
   - cols 0–1 hold creatures, and a twin in the other column makes a matched pair.
   - cols 2–3 hold upgrades. Col 3 can only be filled once col 2 is filled, and **col 3 triggers first** (it is the top of the stack).
   - Take cards off the field with `Player.removeFromField(row, col)`, never `row[i] = null`. It resets `facedUp` and `matched`, so the card is clean whether it goes to the hand or the discard pile.
-  - `Player.playToField` adds an empty row at the top or bottom whenever a card is placed on an edge row, so there is always an empty row to place into. `discardLosingRow` removes emptied middle rows.
+  - `Player.field` only holds rows that have cards in them (it starts as `[]`). To play a creature into a new row, pass `row = -1` (new row above all rows) or `row = field.length` (new row below); `Player.playToField` opens the row. For an empty field only `row = 0` is valid. `Player.removeRow` always deletes the row. The empty "drop here" rows the UI shows come from `fieldRowsWithPlaceholders` in `src/app/fieldRows.ts`, which gives each row its model index (-1 and `field.length` for the placeholders).
 - **Visibility:** `Card.facedUp` means the card is permanently revealed on the field. Temporary reveals, such as Messy Dorm, live in `GameBoard.temporaryEffects`. Views must call `controller.isCardVisibleToPlayer(card, ownerIndex)` and must not read `facedUp` directly.
-- **Card images:** `Card.front` and `Card.back` hold image filenames from cards.json. The back image depends on the card type (`creature.jpg`, `upgrade.jpg`, `action.jpg`).
+- **Card images:** the model has no image info. Views use `cardFrontUrl(card)` (looked up by `id` in cards.json) and `cardBackUrl(card)` (depends on the card type: `creature.jpg`, `upgrade.jpg`, `action.jpg`) from `src/app/cardImages.ts`.
 
 ### Controller flow
 
@@ -78,7 +80,7 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 - New card behavior: add the literal to the right `types/*.ts` union, add the definition to `cards.json` and `deck.json`, put the rule itself in `src/model/rules/` and the move validator in `GameController`, and add a test. Cards are plain data, so don't add behavior methods to the card classes.
 - Keep the model free of React and controller imports. Keep game rules out of the views.
 - The tsconfig has `erasableSyntaxOnly`, so don't use constructor parameter properties (`constructor(private x: T)`) or `enum`. Use explicit fields and string unions.
-- Tests construct cards through `CardFactory.create(CardData)`, which needs `front` and `back`. `GameController`'s constructor shuffles and deals 5-card hands, so tests that need an exact state must build `GameBoard` and `Player` directly or account for the deal.
+- Tests construct cards through `CardFactory.create(CardData)`. `GameController`'s constructor shuffles and deals 5-card hands, so tests that need an exact state must build `GameBoard` and `Player` directly or account for the deal.
 
 ## Intentional deviations from GAME_RULES_V1.md
 
@@ -109,7 +111,7 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`. (`TurnState` on `GameBoard.turn`; `gameResult` is `GameBoard.result` so it survives the per-turn reset; `maxMovesPerTurn` is derived from `turnCount`.)
 - [x] Move the game rules (battles, upgrade resolution, matching abilities) out of `GameController` into model services or classes. The controller should only check moves and coordinate them. Either implement or delete the empty `Card.canPlay`/`onPlay` stubs. Then remove the unused `_` parameters and the `argsIgnorePattern` exception in `eslint.config.js`. (Rules and placement checks live in `src/model/rules/`; the stubs were deleted. Action-card effects are still in the controller, since they are tied to `pendingAction`.)
 - [x] Stop exposing editable model internals. (`getGameState()` returns a `GameView` of readonly interfaces from `model/game/views.ts` (`GameView`, `PlayerView`, `DeckView`, `FieldView`), which the model classes implement. The controller changes the model through `addToHand`, `GameBoard.takeFromDiscard` and `add/removeTemporaryEffect`. `Deck.deck` is gone; use `Deck.peek()`. `Card` fields such as `facedUp` are still mutable.)
-- [ ] Take display details out of the model: image filenames (`front`/`back`) should come from a view-side lookup by card `id`, and the empty placeholder rows on the field should be a UI concern.
+- [x] Take display details out of the model: image filenames (`front`/`back`) should come from a view-side lookup by card `id`, and the empty placeholder rows on the field should be a UI concern.
 - [ ] Make controller method signatures consistent: indexes vs `Player`/`Card` objects, and no raw `selectedCardId` coming from the UI.
 - [ ] Move the AI turn loop out of the views' End Turn handlers and into the controller.
 - [ ] Move the "start an attack or place a card?" click logic out of the views into the controller.

@@ -46,6 +46,25 @@ describe("AIController", () => {
     expect(controller.canEndTurn()).toBe(true);
   });
 
+  it("places a creature on a completely empty field", () => {
+    const creature = makeCreature("ai_cat", "cat");
+    const { controller, players } = createTestController({
+      deck: [makeCreature("deck_1")],
+      hands: [[], [creature]],
+      fields: [[makeCreature()], []],
+      currentPlayerIndex: 1,
+      turnCounts: [1, 0],
+      player2IsAI: true,
+    });
+    expect(players[1].field).toEqual([]);
+
+    new AIController(controller).executeAITurn();
+
+    // One new row, with the creature in either creature column (the AI picks at random)
+    expect(players[1].field).toHaveLength(1);
+    expect(players[1].field[0].slice(0, 2)).toContain(creature);
+  });
+
   it("draws at the start of a normal turn", () => {
     const { controller, game } = createTestController({
       deck: [makeCreature("deck_1")],

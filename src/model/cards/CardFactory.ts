@@ -11,8 +11,6 @@ export class CardFactory {
                 return new CreatureCard(
                     data.id,
                     data.name,
-                    data.front,
-                    data.back,
                     data.creatureType!,
                     data.matchingAbilityType!
                 );
@@ -20,16 +18,12 @@ export class CardFactory {
                 return new UpgradeCard(
                     data.id,
                     data.name,
-                    data.front,
-                    data.back,
                     data.upgradeType!
                 );
             case "action":
                 return new ActionCard(
                     data.id,
                     data.name,
-                    data.front,
-                    data.back,
                     data.actionType!
                 );
         }

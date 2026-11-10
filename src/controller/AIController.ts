@@ -70,8 +70,8 @@ export class AIController {
       // For now, we won't use action cards in dumb AI
       if (card.type !== "creature" && card.type !== "upgrade") continue;
 
-      // Check all possible positions
-      for (let row = 0; row < player.field.length; row++) {
+      // Check all possible positions, including a new row above (-1) and below (length)
+      for (let row = -1; row <= player.field.length; row++) {
         for (let col = 0; col < 4; col++) {
           if (
             this.gameController.canPlayCard(

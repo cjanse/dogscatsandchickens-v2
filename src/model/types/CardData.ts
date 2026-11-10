@@ -18,8 +18,4 @@ export type CardData = {
 
     // action-only fields
     actionType?: ActionType;
-
-    // shared asset info
-    front: string;
-    back: string;
 };

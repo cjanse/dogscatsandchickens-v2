@@ -15,9 +15,7 @@ describe('GameBoard', () => {
                 name: 'Basic Dog',
                 type: 'creature',
                 creatureType: 'dog',
-                matchingAbilityType: 'alwaysWin',
-                front: 'dog_basic.jpg',
-                back: 'dog_basic.jpg'
+                matchingAbilityType: 'alwaysWin'
             },
         };
 
@@ -38,9 +36,7 @@ describe('GameBoard', () => {
                 name: 'Basic Dog',
                 type: 'creature',
                 creatureType: 'dog',
-                matchingAbilityType: 'alwaysWin',
-                front: 'dog_basic.jpg',
-                back: 'dog_basic.jpg'
+                matchingAbilityType: 'alwaysWin'
             },
         };
 
@@ -64,9 +60,7 @@ describe('GameBoard', () => {
                 name: 'Basic Dog',
                 type: 'creature',
                 creatureType: 'dog',
-                matchingAbilityType: 'alwaysWin',
-                front: 'dog_basic.jpg',
-                back: 'dog_basic.jpg'
+                matchingAbilityType: 'alwaysWin'
             },
         };
 
@@ -80,14 +74,12 @@ describe('GameBoard', () => {
             id: 'upgrade_basic',
             name: 'Basic Upgrade',
             type: 'upgrade',
-            upgradeType: 'revive',
-            front: 'upgrade_basic.jpg',
-            back: 'upgrade.jpg'
+            upgradeType: 'revive'
         };
         const card = CardFactory.create(data);
         alice.addToHand(card);
         alice.playToField(card.instanceId, 0, 0);
-        expect(game.players[0].field[1][0]).toBe(card); //Expect card to be in first row due to expandFieldIfNeeded functionality
+        expect(game.players[0].field[0][0]).toBe(card);
         expect(game.players[0].hand.length).toBe(0);
     });
 
@@ -149,7 +141,7 @@ describe('GameBoard', () => {
     });
 
     it('discardRow sends a whole row to the discard pile, reset', () => {
-        const alice = new Player(0);
+        const alice = new Player(0, 1);
         const game = new GameBoard([alice, new Player(1)], new Deck([]));
         const dog = CardFactory.create(dogData) as CreatureCard;
         dog.facedUp = true;
@@ -159,7 +151,7 @@ describe('GameBoard', () => {
 
         expect(game.discardPile).toEqual([dog]);
         expect(dog.facedUp).toBe(false);
-        expect(alice.field).toEqual([[null, null, null, null]]);
+        expect(alice.field).toEqual([]);
     });
 
     it('takeFromDiscard removes and returns a card, or undefined if it is not there', () => {
@@ -190,7 +182,5 @@ const dogData: CardData = {
     name: 'Basic Dog',
     type: 'creature',
     creatureType: 'dog',
-    matchingAbilityType: 'alwaysWin',
-    front: 'dog_basic.jpg',
-    back: 'creature.jpg'
+    matchingAbilityType: 'alwaysWin'
 };

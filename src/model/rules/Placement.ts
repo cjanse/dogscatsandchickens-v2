@@ -6,8 +6,18 @@ import type { Player } from "../game/Player";
  * These checks only cover the slot. Whose turn it is and how many moves are left are checked by the controller.
  */
 
+/**
+ * A row to play into: an existing row, or a new one above (`-1`) or below (`field.length`) the rest.
+ * An empty field has just the one new row, at 0.
+ */
+export function isPlaceableRow(player: Player, row: number): boolean {
+  const rowCount = player.field.length;
+  return (row >= 0 && row <= rowCount) || (row === -1 && rowCount > 0);
+}
+
 /** A creature goes in col 0 or 1, into an empty slot, and only next to its own twin. */
 export function canPlaceCreature(player: Player, card: Card, row: number, col: number): boolean {
+  if (!isPlaceableRow(player, row)) return false;
   if (col !== 0 && col !== 1) return false;
   if (player.field[row]?.[col]) return false;
 

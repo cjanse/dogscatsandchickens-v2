@@ -34,8 +34,8 @@ export class GameController {
   ) {
     const deck = DeckFactory.create(deckConfig, cardDefs);
 
-    const player1 = new Player(0, 1, 4, false);
-    const player2 = new Player(1, 1, 4, player2IsAI);
+    const player1 = new Player(0, 0, 4, false);
+    const player2 = new Player(1, 0, 4, player2IsAI);
 
     this.game = new GameBoard([player1, player2], deck);
 

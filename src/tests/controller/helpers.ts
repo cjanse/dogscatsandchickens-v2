@@ -22,8 +22,6 @@ export function makeCreature(
     type: "creature",
     creatureType,
     matchingAbilityType,
-    front: "front.jpg",
-    back: "creature.jpg",
   }) as CreatureCard;
 }
 
@@ -33,8 +31,6 @@ export function makeAction(id: string, actionType: ActionType): Card {
     name: id,
     type: "action",
     actionType,
-    front: "front.jpg",
-    back: "action.jpg",
   });
 }
 
@@ -44,8 +40,6 @@ export function makeUpgrade(id = "test_defense", upgradeType: UpgradeType = "def
     name: id,
     type: "upgrade",
     upgradeType,
-    front: "front.jpg",
-    back: "upgrade.jpg",
   });
 }
 
@@ -54,7 +48,7 @@ export interface TestGameSetup {
   deck?: Card[];
   /** Starting hand per player. Default: empty. */
   hands?: [Card[], Card[]];
-  /** Cards placed in each player's first field row, starting at column 0. */
+  /** Cards placed in each player's first field row, starting at column 0. An empty list means an empty field (no rows). */
   fields?: [Card[], Card[]];
   /** Which player moves first. Default: 0. */
   currentPlayerIndex?: number;
@@ -70,8 +64,8 @@ export interface TestGameSetup {
  */
 export function createTestController(setup: TestGameSetup = {}) {
   const players = [
-    new Player(0, 1, 4, false),
-    new Player(1, 1, 4, setup.player2IsAI ?? false),
+    new Player(0, 0, 4, false),
+    new Player(1, 0, 4, setup.player2IsAI ?? false),
   ];
   const turnCounts = setup.turnCounts ?? [1, 1];
   // Different creature types, so an empty deck doesn't immediately end the game in a tie
@@ -80,9 +74,10 @@ export function createTestController(setup: TestGameSetup = {}) {
   players.forEach((player, i) => {
     player.turnCount = turnCounts[i];
     setup.hands?.[i].forEach(card => player.addToHand(card));
-    fields[i].forEach((card, col) => {
-      player.field[0][col] = card;
-    });
+    // The field only holds rows that have cards in them
+    if (fields[i].length > 0) {
+      player.field = [Array.from({ length: 4 }, (_, col) => fields[i][col] ?? null)];
+    }
   });
 
   const game = new GameBoard(players, new Deck(setup.deck ?? []));
