@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { GameController } from "./controller/GameController";
 import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
-import type { Card } from "./model/cards/Card";
+import type { FieldView } from "./model/game/views";
 
 export default function GamePageV1() {
   // This is the game view using card images. Initially copied from diagnostics.
@@ -67,7 +67,7 @@ export default function GamePageV1() {
 
   //Helper function to assist with rendering the field
   function renderField(
-    field: (Card | null)[][],
+    field: FieldView,
     isOpponent: boolean,
     compact: boolean = false
   ) {
@@ -328,7 +328,7 @@ export default function GamePageV1() {
             >
               {game.deck.size > 0 ? (
                 <img
-                  src={`/assets/v1/cards/${game.deck.deck[game.deck.deck.length - 1]?.back || "creature.jpg"}`}
+                  src={`/assets/v1/cards/${game.deck.peek()?.back || "creature.jpg"}`}
                   alt="Deck"
                   style={{
                     width: "100%",
@@ -344,10 +344,10 @@ export default function GamePageV1() {
 
           {/* Discard Pile */}
           <div style={{ textAlign: "center", position: "relative" }}>
-            <p style={{ margin: "1px 0", fontSize: `${smallFontSize}px` }}>Discard ({game.getDiscardPile().length})</p>
+            <p style={{ margin: "1px 0", fontSize: `${smallFontSize}px` }}>Discard ({game.discardPile.length})</p>
             <div
               onClick={() => {
-                if (game.getDiscardPile().length > 0) {
+                if (game.discardPile.length > 0) {
                   setDiscardPileExpanded(!discardPileExpanded);
                 }
               }}
@@ -360,13 +360,13 @@ export default function GamePageV1() {
                 alignItems: "center",
                 justifyContent: "center",
                 overflow: "hidden",
-                cursor: game.getDiscardPile().length > 0 ? "pointer" : "default",
+                cursor: game.discardPile.length > 0 ? "pointer" : "default",
                 fontSize: "8px"
               }}
             >
-              {game.getDiscardPile().length > 0 ? (
+              {game.discardPile.length > 0 ? (
                 <img
-                  src={`/assets/v1/cards/${game.getDiscardPile()[game.getDiscardPile().length - 1]?.front || "creature.jpg"}`}
+                  src={`/assets/v1/cards/${game.discardPile[game.discardPile.length - 1]?.front || "creature.jpg"}`}
                   alt="Discard"
                   style={{
                     width: "100%",
@@ -380,7 +380,7 @@ export default function GamePageV1() {
             </div>
 
             {/* Expanded Discard Pile */}
-            {discardPileExpanded && game.getDiscardPile().length > 0 && (
+            {discardPileExpanded && game.discardPile.length > 0 && (
               <div
                 style={{
                   position: "absolute",
@@ -400,7 +400,7 @@ export default function GamePageV1() {
                   width: 120
                 }}
               >
-                {[...game.getDiscardPile()].reverse().map((card) => (
+                {[...game.discardPile].reverse().map((card) => (
                   <div
                     key={card.instanceId}
                     onClick={() => {

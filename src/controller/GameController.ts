@@ -9,6 +9,7 @@ import type { CreatureCard } from "../model/cards/CreatureCard";
 import type { CreatureType } from "../model/types/CreatureType";
 import type { TurnType } from "../model/types/TurnType";
 import type { GameResult } from "../model/types/GameResult";
+import type { GameView, PlayerView } from "../model/game/views";
 import { resolveBattle } from "../model/rules/Battle";
 import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
 import { canPlaceCreature, canPlaceUpgrade, hasUpgradeSlot } from "../model/rules/Placement";
@@ -103,9 +104,16 @@ export class GameController {
     }
   }
 
-  /** Read-only access for the UI */
-  getGameState(): GameBoard {
+  /** Read-only access for the UI. Every change goes through this controller. */
+  getGameState(): GameView {
     return this.game;
+  }
+
+  /** Finds the real Player behind a read-only view the UI is holding. */
+  private modelPlayer(view: PlayerView): Player {
+    const player = this.game.players.find(p => p.id === view.id);
+    if (!player) throw new Error(`Unknown player ${view.id}`);
+    return player;
   }
 
   getPendingAction(): PendingAction {
@@ -135,7 +143,7 @@ export class GameController {
     return this.game.isGameOver;
   }
 
-  hasExtraHandCards(player: Player): boolean {
+  hasExtraHandCards(player: PlayerView): boolean {
     return player.hand.length > 5;
   }
 
@@ -476,7 +484,7 @@ playCard(
 
 
   canUseAction(
-    player: Player,
+    player: PlayerView,
     card: ActionCard,
     row: number,
     col: number
@@ -484,7 +492,7 @@ playCard(
     switch(card.actionType) {
       case "powerOfTea":
         // Power of Tea targets opponent's field
-        return (this.pendingAction == "powerOfTea" && this.game.currentPlayer !== player && !!player.field[row]?.[col])
+        return (this.pendingAction == "powerOfTea" && this.game.currentPlayer.id !== player.id && !!player.field[row]?.[col])
     }
     return false;
   }
@@ -514,7 +522,8 @@ playCard(
   // End Play Card Validation Suite
 
   //Play Hand Card Logic suite
-  playHandCard(player: Player, card: Card): PlayResult {
+  playHandCard(playerView: PlayerView, card: Card): PlayResult {
+    const player = this.modelPlayer(playerView);
     if (!this.canPlayHandCard(player, card)) {
       return { success: false, reason: "Cannot play this card" };
     }
@@ -531,7 +540,8 @@ playCard(
     return { success: false, reason: "Unknown card type" };
   }
 
-  playHandActionCard(player: Player, card: ActionCard): PlayResult {
+  playHandActionCard(playerView: PlayerView, card: ActionCard): PlayResult {
+    const player = this.modelPlayer(playerView);
     if (this.canPlayHandCard(player, card) === false) {
       return { success: false, reason: "Cannot play this card" };
     }
@@ -563,7 +573,7 @@ playCard(
   private resolveMessyDorm(player: Player): PlayResult {
     const opponent = this.game.opponentOf(player);
     // Add temporary effect
-    this.game.temporaryEffects.push({
+    this.game.addTemporaryEffect({
       type: "revealHand",
       sourcePlayerId: player.id,
       targetPlayerId: opponent.id
@@ -578,13 +588,13 @@ playCard(
 
   //Can Play Hand Card Logic suite
   //TODO: ENHANCE CANPLAYHANDCARD FUNCTION
-  canPlayHandCard(player: Player, card: Card): boolean {
-    const canPlay = this.canMakeMove() && player === this.game.currentPlayer && player.hand.includes(card);
+  canPlayHandCard(player: PlayerView, card: Card): boolean {
+    const canPlay = this.canMakeMove() && player.id === this.game.currentPlayer.id && player.hand.includes(card);
     if (canPlay === false) return false;
     // First turn: only a creature may be played
     if (this.isFirstTurn() && card.type !== "creature") return false;
     else {
-      if (card.type === "upgrade") return hasUpgradeSlot(player);
+      if (card.type === "upgrade") return hasUpgradeSlot(this.modelPlayer(player));
       else if (card.type === "action") return this.canPlayHandAction(card as ActionCard);
       else return true; //creature can ALWAYS be played
     }
@@ -615,7 +625,8 @@ playCard(
   //End Can Play Hand Card Logic
 
   //Interact with opponent hand
-  interactWithOpponentCard(player: Player, selectedCardId: string | null, card: Card): PlayResult { 
+  interactWithOpponentCard(playerView: PlayerView, selectedCardId: string | null, card: Card): PlayResult {
+    const player = this.modelPlayer(playerView);
     if (!this.canInteractWithOpponentCard(player)) {
       return { success: false, reason: "Cannot interact with this card" };
     }
@@ -659,7 +670,7 @@ playCard(
     const stolen =
       candidates[Math.floor(Math.random() * candidates.length)];
 
-    this.game.currentPlayer.hand.push(player.removeFromHand(stolen.instanceId) as Card);
+    this.game.currentPlayer.addToHand(player.removeFromHand(stolen.instanceId) as Card);
 
     // Clear pending state
     this.pendingAction = null;
@@ -671,15 +682,15 @@ playCard(
   //End interact with opponent hand
 
   //can interact with Opponent Card Logic suite
-  canInteractWithOpponentCard(player: Player): boolean {
+  canInteractWithOpponentCard(player: PlayerView): boolean {
     if (this.isGameOver()) return false;
-    if (player === this.game.currentPlayer) return false;
+    if (player.id === this.game.currentPlayer.id) return false;
     return this.pendingAction === "stealCard";
   }
   // End can interact with opponent card logic suite
 
   //Interact with Discard pile Logic suite
-  selectDiscardPileCard(player: Player, selectedCardId: string | null, card: Card): PlayResult {
+  selectDiscardPileCard(player: PlayerView, selectedCardId: string | null, card: Card): PlayResult {
     if (selectedCardId == null) {
       return { success: false, reason: "No card selected" };
     }
@@ -693,7 +704,7 @@ playCard(
       case "upgradeRevive": {
         this.resetTemporaryEffectsIfNeeded();
         // Remove card from discard pile
-        const result = this.resolveRevive(player, selectedCardId, card);
+        const result = this.resolveRevive(this.modelPlayer(player), selectedCardId, card);
         if (result.success) {
           this.game.turn.useMove();
         }
@@ -703,8 +714,8 @@ playCard(
     return {success: false, reason: "No interaction performed"};
   }
 
-  resolveRevive(player: Player, selectedCardId: string | null, card: Card): PlayResult {
-    player.hand.push(this.game.discardPile.splice(this.game.discardPile.indexOf(card), 1)[0]);
+  private resolveRevive(player: Player, selectedCardId: string | null, card: Card): PlayResult {
+    player.addToHand(this.game.takeFromDiscard(card) as Card);
     //Discard action card
     this.game.discard(this.game.currentPlayer.removeFromHand(selectedCardId as string) as Card);
     return { success: true };
@@ -760,15 +771,15 @@ playCard(
   }
 
   private clearRevealIfNeeded(player: Player) {
-    const revealIndex = this.game.temporaryEffects.findIndex(
+    const revealEffect = this.game.temporaryEffects.find(
       e =>
         e.type === "revealHand" &&
         e.sourcePlayerId === player.id
     );
 
-    if (revealIndex !== -1) {
+    if (revealEffect) {
       // Remove the reveal effect
-      this.game.temporaryEffects.splice(revealIndex, 1);
+      this.game.removeTemporaryEffect(revealEffect);
 
       //Pending action is set to null
       this.pendingAction = null;

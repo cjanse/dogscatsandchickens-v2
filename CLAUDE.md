@@ -37,7 +37,7 @@ src/
     rules/      Stateless game rules: Matchup (type circle), Battle, Upgrades (the upgrade stack), Matching (matched abilities), Placement (field slots)
     types/      String-literal union types (CardType, CreatureType, UpgradeType, ActionType, MatchingAbilityType, TurnType, GameResult, CardData)
   controller/
-    GameController.ts   Checks moves and coordinates them (validators, pendingAction, action cards). Views talk only to this.
+    GameController.ts   Checks moves and coordinates them (validators, pendingAction, action cards). Views talk only to this. getGameState() returns a read-only GameView; public methods take PlayerView and look up the real Player by id.
     AIController.ts     Picks random valid moves through GameController's public can*/play* API
   app/loadV1Assets.ts   Turns cards.json and deck.json into CardData records
   assets/v1/            cards.json (card definitions) and deck.json (copies per card id; 36 cards total)
@@ -108,10 +108,7 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 ### 2. MVC cleanup
 - [x] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`. (`TurnState` on `GameBoard.turn`; `gameResult` is `GameBoard.result` so it survives the per-turn reset; `maxMovesPerTurn` is derived from `turnCount`.)
 - [x] Move the game rules (battles, upgrade resolution, matching abilities) out of `GameController` into model services or classes. The controller should only check moves and coordinate them. Either implement or delete the empty `Card.canPlay`/`onPlay` stubs. Then remove the unused `_` parameters and the `argsIgnorePattern` exception in `eslint.config.js`. (Rules and placement checks live in `src/model/rules/`; the stubs were deleted. Action-card effects are still in the controller, since they are tied to `pendingAction`.)
-- [ ] Stop exposing editable model internals:
-  - Make `getGameState()` actually read-only, or return a view model.
-  - Replace direct `hand.push`, `discardPile.splice` and `row[i] = null` with model methods.
-  - Remove `Deck.deck` (the debug getter), which the view reads.
+- [x] Stop exposing editable model internals. (`getGameState()` returns a `GameView` of readonly interfaces from `model/game/views.ts` (`GameView`, `PlayerView`, `DeckView`, `FieldView`), which the model classes implement. The controller changes the model through `addToHand`, `GameBoard.takeFromDiscard` and `add/removeTemporaryEffect`. `Deck.deck` is gone; use `Deck.peek()`. `Card` fields such as `facedUp` are still mutable.)
 - [ ] Take display details out of the model: image filenames (`front`/`back`) should come from a view-side lookup by card `id`, and the empty placeholder rows on the field should be a UI concern.
 - [ ] Make controller method signatures consistent: indexes vs `Player`/`Card` objects, and no raw `selectedCardId` coming from the UI.
 - [ ] Move the AI turn loop out of the views' End Turn handlers and into the controller.

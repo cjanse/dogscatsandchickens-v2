@@ -161,6 +161,28 @@ describe('GameBoard', () => {
         expect(dog.facedUp).toBe(false);
         expect(alice.field).toEqual([[null, null, null, null]]);
     });
+
+    it('takeFromDiscard removes and returns a card, or undefined if it is not there', () => {
+        const game = new GameBoard([new Player(0), new Player(1)], new Deck([]));
+        const dog = CardFactory.create(dogData);
+        const other = CardFactory.create(dogData);
+        game.discard(dog);
+
+        expect(game.takeFromDiscard(other)).toBeUndefined();
+        expect(game.discardPile).toEqual([dog]);
+        expect(game.takeFromDiscard(dog)).toBe(dog);
+        expect(game.discardPile).toEqual([]);
+    });
+
+    it('adds and removes temporary effects', () => {
+        const game = new GameBoard([new Player(0), new Player(1)], new Deck([]));
+        const effect = { type: 'revealHand' as const, sourcePlayerId: 0, targetPlayerId: 1 };
+
+        game.addTemporaryEffect(effect);
+        expect(game.temporaryEffects).toEqual([effect]);
+        game.removeTemporaryEffect(effect);
+        expect(game.temporaryEffects).toEqual([]);
+    });
 });
 
 const dogData: CardData = {

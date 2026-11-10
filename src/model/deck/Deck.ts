@@ -1,6 +1,7 @@
 import type { Card } from "../cards/Card";
+import type { DeckView } from "../game/views";
 
-export class Deck {
+export class Deck implements DeckView {
     private cards: Card[];
 
     constructor(cards: Card[]) {
@@ -27,8 +28,8 @@ export class Deck {
         return this.cards.length;
     }
 
-    //Debugging tool, need to remove in production
-    get deck() {
-        return this.cards
+    /** The card that would be drawn next, without drawing it. */
+    peek(): Card | undefined {
+        return this.cards[this.cards.length - 1];
     }
 }

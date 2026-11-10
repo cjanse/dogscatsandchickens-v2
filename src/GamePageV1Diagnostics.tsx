@@ -2,7 +2,7 @@ import { useState } from "react";
 import { GameController } from "./controller/GameController";
 import { AIController } from "./controller/AIController";
 import { loadV1Assets } from "./app/loadV1Assets";
-import type { Card } from "./model/cards/Card";
+import type { FieldView } from "./model/game/views";
 
 export default function GamePageV1Diagnostics() {
   const [, forceUpdate] = useState(0);
@@ -29,7 +29,7 @@ export default function GamePageV1Diagnostics() {
 
   //Helper function to assist with rendering the field
   function renderField(
-    field: (Card | null)[][],
+    field: FieldView,
     isOpponent: boolean
   ) {
     const visualRows = isOpponent ? [...field].reverse() : field;
@@ -177,13 +177,6 @@ export default function GamePageV1Diagnostics() {
         <h1>Dogs, Cats, and Chickens (v1) - Diagnostics</h1>
 
         <p>Deck size: {game.deck.size}</p>
-        <ul>
-        {game.deck.deck.map((card) => (
-          <li key={card.instanceId}>
-            {card.name} ({card.type})
-          </li>
-        ))}
-        </ul>
         <p>Current player: {currentPlayer.id}</p>
 
         {/* Opponent */}
@@ -287,9 +280,9 @@ export default function GamePageV1Diagnostics() {
             Draw Card
           </button>
         </div>
-          <p>Discard pile ({game.getDiscardPile().length})</p>
+          <p>Discard pile ({game.discardPile.length})</p>
           <ul>
-            {game.getDiscardPile().map(card => (
+            {game.discardPile.map(card => (
               <li key={card.instanceId}
               style={{
                     cursor: controller.canInteractWithDiscardPileCard(card) ? "pointer" : "not-allowed"
