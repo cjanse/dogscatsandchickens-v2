@@ -262,9 +262,35 @@ export class GameController {
     this.hasDrawn = true;
   }
 
+  /**
+   * A draw costs no move. It isn't available on a first turn, with an empty deck,
+   * or (during a recovery turn) until the player has a creature on the field.
+   */
   canDrawCard(playerIndex: number): boolean {
+    if (this.isGameOver()) return false;
     const player = this.game.players[playerIndex];
-    return !this.hasDrawn && player === this.game.currentPlayer && this.game.deck.size > 0 && player.turnCount != 0 && this.movesThisTurn == 0 && this.playerHasCreatures(player); //&& this.movesThisTurn == 0
+    return !this.hasDrawn &&
+      player === this.game.currentPlayer &&
+      this.game.deck.size > 0 &&
+      player.turnCount !== 0 &&
+      this.playerHasCreatures(player);
+  }
+
+  isFirstTurn(): boolean {
+    return this.game.currentPlayer.turnCount === 0;
+  }
+
+  /** True while the current player owes a draw. No move or end of turn is allowed until they draw. */
+  mustDrawFirst(): boolean {
+    return this.canDrawCard(this.game.currentPlayerIndex);
+  }
+
+  canEndTurn(): boolean {
+    return !this.isGameOver() && !this.mustDrawFirst();
+  }
+
+  private canMakeMove(): boolean {
+    return !this.isGameOver() && !this.mustDrawFirst() && this.movesThisTurn < this.maxMovesPerTurn;
   }
 
   // Play card logic suite for field (REINFORCE ONLY)
@@ -327,8 +353,17 @@ playCard(
 
     const creature = card as CreatureCard;
 
+    if (this.isGameOver()) {
+      return { success: false, reason: "The game is over" };
+    }
+    if (this.mustDrawFirst()) {
+      return { success: false, reason: "You must draw first" };
+    }
+    if (this.isFirstTurn()) {
+      return { success: false, reason: "Only a creature may be played on your first turn" };
+    }
     // Check if this is first attack or if the attacking creature is a matched cat (can attack multiple times)
-    if (this.movesThisTurn !== 0 && !(creature.matched && creature.creatureType === "cat" && this.allowExtraAttack)) {
+    if (!this.canAttackWith(row, col)) {
       return { success: false, reason: "Attacks must be first move" };
     }
 
@@ -605,19 +640,16 @@ playCard(
     if (
       this.pendingAction === null &&
       player === this.game.currentPlayer &&
-      player.field[row]?.[col]?.type === "creature"
+      this.canAttackWith(row, col)
     ) {
-      const creature = player.field[row]?.[col] as CreatureCard;
-      
-      // Allow first attack (movesThisTurn === 0) or matched cat extra attack
-      if (this.movesThisTurn === 0 || (this.allowExtraAttack && creature.matched && creature.creatureType === "cat")) {
-        return true;
-      }
+      return true;
     }
 
     // REINFORCE FLOW
     const card = this.game.currentPlayer.hand.find(c => c.instanceId === cardId);
     if (!card) return false;
+    // Moves left, draw-first and first-turn rules
+    if (!this.canPlayHandCard(this.game.currentPlayer, card)) return false;
 
     switch (card.type) {
       case "creature":
@@ -651,6 +683,10 @@ playCard(
     const creature = player.field[row]?.[col] as CreatureCard;
     
     if (!creature || creature.type !== "creature") {
+      return false;
+    }
+
+    if (this.isGameOver() || this.mustDrawFirst() || this.isFirstTurn()) {
       return false;
     }
 
@@ -778,9 +814,10 @@ playCard(
   //Can Play Hand Card Logic suite
   //TODO: ENHANCE CANPLAYHANDCARD FUNCTION
   canPlayHandCard(player: Player, card: Card): boolean {
-    if (this.isGameOver()) return false;
-    const canPlay = this.movesThisTurn < this.maxMovesPerTurn && player === this.game.currentPlayer && player.hand.includes(card);
+    const canPlay = this.canMakeMove() && player === this.game.currentPlayer && player.hand.includes(card);
     if (canPlay === false) return false;
+    // First turn: only a creature may be played
+    if (this.isFirstTurn() && card.type !== "creature") return false;
     else {
       if (card.type === "upgrade") return this.canPlayHandUpgrade(player, card);
       else if (card.type === "action") return this.canPlayHandAction(player, card as ActionCard);
@@ -994,7 +1031,14 @@ playCard(
   }
 
   // Turn Management
-  endTurn() {
+  endTurn(): PlayResult {
+    if (this.isGameOver()) {
+      return { success: false, reason: "The game is over" };
+    }
+    if (this.mustDrawFirst()) {
+      return { success: false, reason: "You must draw first" };
+    }
+
     const currentPlayer = this.game.currentPlayer;
 
     // Increment current player's turn count for next turn
@@ -1011,14 +1055,15 @@ playCard(
 
     // LOSS CHECK
     if (this.checkLossCondition(currentPlayer)) {
-      return;
+      return { success: true };
     }
 
     this.game.nextTurn();
-    
+
     // Update max moves for the new turn
     this.updateMaxMovesPerTurn();
 
     this.checkTieCondition();
+    return { success: true };
   }
 }

@@ -6,6 +6,8 @@ import { Deck } from "../../model/deck/Deck";
 import { GameBoard } from "../../model/game/GameBoard";
 import { Player } from "../../model/game/Player";
 import type { CreatureType } from "../../model/types/CreatureType";
+import type { ActionType } from "../../model/types/ActionType";
+import type { UpgradeType } from "../../model/types/UpgradeType";
 
 /** Builds a creature card. Copies with the same `id` can match each other. */
 export function makeCreature(
@@ -21,6 +23,28 @@ export function makeCreature(
     front: "front.jpg",
     back: "creature.jpg",
   }) as CreatureCard;
+}
+
+export function makeAction(id: string, actionType: ActionType): Card {
+  return CardFactory.create({
+    id,
+    name: id,
+    type: "action",
+    actionType,
+    front: "front.jpg",
+    back: "action.jpg",
+  });
+}
+
+export function makeUpgrade(id = "test_defense", upgradeType: UpgradeType = "defense"): Card {
+  return CardFactory.create({
+    id,
+    name: id,
+    type: "upgrade",
+    upgradeType,
+    front: "front.jpg",
+    back: "upgrade.jpg",
+  });
 }
 
 export interface TestGameSetup {
@@ -39,8 +63,8 @@ export interface TestGameSetup {
 
 /**
  * Builds a GameController around a known GameBoard, skipping the random
- * opening deal. Players default to having one creature on the field so the
- * loss check in endTurn doesn't end the game.
+ * opening deal. Players default to having one creature on the field (a Dog for
+ * player 0, a Cat for player 1) so the loss and tie checks in endTurn don't end the game.
  */
 export function createTestController(setup: TestGameSetup = {}) {
   const players = [
@@ -48,7 +72,8 @@ export function createTestController(setup: TestGameSetup = {}) {
     new Player(1, 1, 4, setup.player2IsAI ?? false),
   ];
   const turnCounts = setup.turnCounts ?? [1, 1];
-  const fields = setup.fields ?? [[makeCreature()], [makeCreature()]];
+  // Different creature types, so an empty deck doesn't immediately end the game in a tie
+  const fields = setup.fields ?? [[makeCreature()], [makeCreature("test_cat", "cat")]];
 
   players.forEach((player, i) => {
     player.turnCount = turnCounts[i];

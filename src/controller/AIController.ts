@@ -3,7 +3,7 @@ import type { Player } from "../model/game/Player";
 import type { Card } from "../model/cards/Card";
 
 interface Move {
-  type: "placeCard" | "attack" | "draw";
+  type: "placeCard" | "attack";
   card?: Card;
   row?: number;
   col?: number;
@@ -24,14 +24,13 @@ export class AIController {
   executeAITurn(): void {
     const currentPlayer = this.gameController.getGameState().currentPlayer;
 
-    if (!currentPlayer.isAI) {
+    if (!currentPlayer.isAI || this.gameController.isGameOver()) {
       return;
     }
 
-    // Draw card at beginning of turn if possible
-    if (this.gameController.canDrawCard(currentPlayer.id)) {
-      this.gameController.drawCard(currentPlayer.id);
-    }
+    // Draw first. On a recovery turn the draw only becomes available once a
+    // creature is on the field, so retry after every move.
+    this.drawIfPossible(currentPlayer);
 
     // Keep making moves while there are moves left
     while (this.gameController.getMovesLeft() > 0) {
@@ -43,6 +42,7 @@ export class AIController {
 
       const randomMove = moves[Math.floor(Math.random() * moves.length)];
       this.executeMove(randomMove, currentPlayer);
+      this.drawIfPossible(currentPlayer);
     }
 
     // Handle card discard if needed
@@ -50,6 +50,12 @@ export class AIController {
       this.gameController.startDiscardPhase();
       const cardToDiscard = currentPlayer.hand[0];
       this.gameController.discardHandCard(cardToDiscard);
+    }
+  }
+
+  private drawIfPossible(player: Player): void {
+    if (this.gameController.canDrawCard(player.id)) {
+      this.gameController.drawCard(player.id);
     }
   }
 
@@ -119,11 +125,6 @@ export class AIController {
       }
     }
 
-    // Check for drawing
-    if (this.gameController.canDrawCard(player.id)) {
-      moves.push({ type: "draw" });
-    }
-
     return moves;
   }
 
@@ -155,10 +156,6 @@ export class AIController {
           // Resolve attack
           this.gameController.resolveAttack(move.targetRow, move.targetCol);
         }
-        break;
-
-      case "draw":
-        this.gameController.drawCard(player.id);
         break;
     }
   }

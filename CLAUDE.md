@@ -96,11 +96,11 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] **Messy Dorm + End Turn:** `endTurn` resets `movesThisTurn` to 0, then `resetTemporaryEffectsIfNeeded` → `clearRevealIfNeeded` adds 1 back. The next player starts with a move already used and can't draw or attack.
 - [x] **Discard pile:** the guard in `selectDiscardPileCard` is inverted (`!canInteract && selectedCardId != null`). Clicking a card with nothing selected still uses a move.
 - [x] **Moves counted too early:** `selectDiscardPileCard` and `interactWithOpponentCard` add to `movesThisTurn` before checking that the action worked.
-- [ ] **Recovery turn:** `canDrawCard` requires `movesThisTurn == 0`. After a recovery move puts a creature on the field, the player can never draw.
+- [x] **Recovery turn:** `canDrawCard` requires `movesThisTurn == 0`. After a recovery move puts a creature on the field, the player can never draw.
 - [ ] **Fake Upgrade** is discarded. It should go back to its owner's hand, unless a Revive also triggers, in which case it is discarded.
 - [ ] **Counter Attack** behaves exactly like Defense. It should also defeat the attacker when the defender's type beats the attacker's.
 - [ ] **Revive** returns cards to the hand still marked `matched` (and `facedUp`). Reset both whenever a card leaves the field.
-- [ ] **AI turn loop:** the AI ignores the first-turn rule and the recovery-turn draw.
+- [x] **AI turn loop:** the AI ignores the first-turn rule and the recovery-turn draw.
 
 ### 2. MVC cleanup
 - [ ] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`.
@@ -122,6 +122,6 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [ ] **Power of Tea:** revealing one card of a matched pair should flip both, and revealing a matched Chicken should trigger its ability.
 - [ ] **Matching:** a pair should stay face down until the player chooses to activate it, which costs no move. Right now it reveals and activates as soon as it is made. Activation is automatic only if the bottom creature was already face up.
 - [ ] **Matched Cat:** only the same Cat should be allowed to keep attacking. Right now any matched Cat can.
-- [ ] **First turn:** only a creature may be played.
+- [x] **First turn:** only a creature may be played.
 - [ ] **Setup:** deal 3 random creatures and then 2 more cards. Right now the controller redraws whole 5-card hands until one has at least 3 creatures.
-- [ ] **Draw first:** the player must draw before making any move.
+- [x] **Draw first:** the player must draw before making any move.
