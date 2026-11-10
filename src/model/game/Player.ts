@@ -1,7 +1,8 @@
 import type { Card } from "../cards/Card";
 import type { CreatureCard } from "../cards/CreatureCard";
+import type { PlayerView } from "./views";
 
-export class Player {
+export class Player implements PlayerView {
     readonly id: number;
     hand: Card[];
     field: (Card | null)[][];

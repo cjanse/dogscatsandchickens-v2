@@ -1,5 +1,5 @@
 import type { GameController } from "./GameController";
-import type { Player } from "../model/game/Player";
+import type { PlayerView } from "../model/game/views";
 import type { Card } from "../model/cards/Card";
 
 interface Move {
@@ -53,7 +53,7 @@ export class AIController {
     }
   }
 
-  private drawIfPossible(player: Player): void {
+  private drawIfPossible(player: PlayerView): void {
     if (this.gameController.canDrawCard(player.id)) {
       this.gameController.drawCard(player.id);
     }
@@ -62,7 +62,7 @@ export class AIController {
   /**
    * Get all valid moves for the AI player
    */
-  private getValidMoves(player: Player): Move[] {
+  private getValidMoves(player: PlayerView): Move[] {
     const moves: Move[] = [];
 
     // Check for valid card placements (creatures and upgrades)
@@ -131,7 +131,7 @@ export class AIController {
   /**
    * Execute a specific move
    */
-  private executeMove(move: Move, player: Player): void {
+  private executeMove(move: Move, player: PlayerView): void {
     switch (move.type) {
       case "placeCard":
         if (move.card && move.row !== undefined && move.col !== undefined) {

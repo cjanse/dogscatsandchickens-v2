@@ -3,6 +3,7 @@ import type { Deck } from "../deck/Deck";
 import type { GameResult } from "../types/GameResult";
 import type { Player } from "./Player";
 import { TurnState } from "./TurnState";
+import type { GameView } from "./views";
 
 //Types
 export type TemporaryEffect =
@@ -12,8 +13,8 @@ export type TemporaryEffect =
 export const FIRST_TURN_MOVES = 1;
 export const MOVES_PER_TURN = 2;
 
-export class GameBoard {
-  temporaryEffects: TemporaryEffect[] = [];
+export class GameBoard implements GameView {
+  readonly temporaryEffects: TemporaryEffect[] = [];
   readonly players: Player[];
   readonly deck: Deck;
   readonly discardPile: Card[] = [];
@@ -70,7 +71,19 @@ export class GameBoard {
     }
   }
 
-  getDiscardPile(): Card[] {
-    return this.discardPile;
+  /** Removes a card from the discard pile (for example a Revive). Returns it, or undefined if it isn't there. */
+  takeFromDiscard(card: Card): Card | undefined {
+    const index = this.discardPile.indexOf(card);
+    if (index === -1) return undefined;
+    return this.discardPile.splice(index, 1)[0];
+  }
+
+  addTemporaryEffect(effect: TemporaryEffect): void {
+    this.temporaryEffects.push(effect);
+  }
+
+  removeTemporaryEffect(effect: TemporaryEffect): void {
+    const index = this.temporaryEffects.indexOf(effect);
+    if (index !== -1) this.temporaryEffects.splice(index, 1);
   }
 }
