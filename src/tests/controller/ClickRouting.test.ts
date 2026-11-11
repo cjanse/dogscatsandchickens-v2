@@ -238,7 +238,7 @@ describe("Power of Tea", () => {
     const faceDown = makeCreature("face_down", "cat");
     const { controller, game, players } = createTestController({ hands: [[tea], []], fields: [[makeCreature()], [faceUp]] });
     players[1].field.push([faceDown, null, null, null]);
-    faceUp.facedUp = true;
+    faceUp.reveal();
 
     controller.clickHandCard(players[0], tea);
     expect(controller.canClickField(players[1], 0, 0)).toBe(false);
@@ -625,7 +625,7 @@ describe("isFaceUp", () => {
     const card = players[0].field[0][0]!;
 
     expect(controller.isFaceUp(card)).toBe(false);
-    card.facedUp = true;
+    card.reveal();
     expect(controller.isFaceUp(card)).toBe(true);
   });
 });

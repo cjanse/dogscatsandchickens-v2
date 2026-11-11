@@ -52,14 +52,14 @@ describe("canPlayAction", () => {
     const { game, players } = createTestController();
     expect(canPlayAction(game, players[0], tea)).toBe(true);
 
-    players[1].field[0][0]!.facedUp = true;
+    players[1].field[0][0]!.reveal();
     expect(canPlayAction(game, players[0], tea)).toBe(false);
   });
 
   it("looks at the opponent of the player asked about, not of the current player", () => {
     const tea = action("Power_of_Tea_1", "powerOfTea");
     const { game, players } = createTestController();
-    players[0].field[0][0]!.facedUp = true;
+    players[0].field[0][0]!.reveal();
 
     // Player 0 is up. Player 1's Tea would target player 0's field, which is all face up.
     expect(canPlayAction(game, players[0], tea)).toBe(true);
@@ -152,7 +152,7 @@ describe("Power of Tea", () => {
     expect(canRevealWithTea(players[1], 0, 1)).toBe(false); // empty cell
     expect(canRevealWithTea(players[1], 5, 0)).toBe(false); // no such row
 
-    players[1].field[0][0]!.facedUp = true;
+    players[1].field[0][0]!.reveal();
     expect(canRevealWithTea(players[1], 0, 0)).toBe(false);
   });
 

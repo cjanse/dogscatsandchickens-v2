@@ -22,7 +22,7 @@ describe("isCardVisible", () => {
     expect(isCardVisible(game, held, players[1], players[0])).toBe(false);
     expect(isCardVisible(game, fieldCard, players[1], players[0])).toBe(false);
 
-    fieldCard.facedUp = true;
+    fieldCard.reveal();
     expect(isCardVisible(game, fieldCard, players[1], players[0])).toBe(true);
   });
 

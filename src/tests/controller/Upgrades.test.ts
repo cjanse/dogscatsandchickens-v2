@@ -24,7 +24,7 @@ describe("Fake Upgrade", () => {
   it("returns to its owner's hand when it is the only upgrade, and the creature is defeated", () => {
     const fake = makeUpgrade("fake_1", "fakeUpgrade");
     const { controller, game, players, defender } = setupAttack([fake]);
-    fake.facedUp = true;
+    fake.reveal();
 
     attack(controller);
 
@@ -141,7 +141,7 @@ describe("cards leaving the field", () => {
     players[1].field[0][1] = right;
     [left, right].forEach(c => {
       c.matched = true;
-      c.facedUp = true;
+      c.reveal();
     });
 
     attack(controller);
@@ -160,7 +160,7 @@ describe("cards leaving the field", () => {
     players[1].field[0][1] = right;
     [left, right].forEach(c => {
       c.matched = true;
-      c.facedUp = true;
+      c.reveal();
     });
 
     attack(controller);

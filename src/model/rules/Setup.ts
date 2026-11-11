@@ -19,7 +19,6 @@ export function dealStartingHand(deck: Deck, player: Player): void {
     if (!card) break; // No more cards in deck
 
     hand.push(card);
-    card.facedUp = false;
 
     if (card.type === "creature") {
       creatureCount++;

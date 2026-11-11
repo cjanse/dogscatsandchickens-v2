@@ -105,7 +105,7 @@ export function canRevealWithTea(owner: PlayerView, row: number, col: number): b
 /** Flips the card at (row, col) on `owner`'s field face up. */
 export function revealWithTea(owner: Player, row: number, col: number): void {
   const target = owner.field[row]?.[col];
-  if (target) target.facedUp = true;
+  if (target) target.reveal();
 }
 
 // Messy Dorm

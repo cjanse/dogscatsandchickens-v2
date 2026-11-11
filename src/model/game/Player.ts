@@ -26,7 +26,9 @@ export class Player implements PlayerView {
         this.isAI = isAI;
     }
 
+    /** A card in a hand is never face up, so adding one (a draw, a steal, a revive) hides it. */
     addToHand(card: Card) {
+        card.hide();
         this.hand.push(card);
     }
 
@@ -98,9 +100,9 @@ export class Player implements PlayerView {
         if (twin && twin.id === playCard.id) {
             const card = playCard as CreatureCard;
             const twinCard = twin as CreatureCard;
-            twinCard.facedUp = true;
+            twinCard.reveal();
             twinCard.matched = true;
-            card.facedUp = true;
+            card.reveal();
             card.matched = true;
             return { placed: true, match: { card, twin: twinCard } };
         }

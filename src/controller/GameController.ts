@@ -247,7 +247,6 @@ export class GameController {
       const card = this.game.deck.draw();
       if (!card) return { success: false, reason: "The deck is empty" };
 
-      card.facedUp = false;
       player.addToHand(card);
       this.game.turn.markDrawn();
       return { success: true };

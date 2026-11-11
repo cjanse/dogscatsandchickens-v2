@@ -175,7 +175,7 @@ describe('Player', () => {
             const player = new Player(1, 1);
             const card = CardFactory.create(dog()) as CreatureCard;
             player.field[0][0] = card;
-            card.facedUp = true;
+            card.reveal();
             card.matched = true;
 
             const removed = player.removeFromField(0, 0);
@@ -195,7 +195,7 @@ describe('Player', () => {
                 upgradeType: 'fakeUpgrade'
             });
             player.field[0][2] = upgrade;
-            upgrade.facedUp = true;
+            upgrade.reveal();
 
             expect(player.removeFromField(0, 2)).toBe(upgrade);
             expect(upgrade.facedUp).toBe(false);
@@ -223,7 +223,8 @@ describe('Player', () => {
             const right = dog();
             const other = dog();
             left.matched = right.matched = true;
-            left.facedUp = right.facedUp = true;
+            left.reveal();
+            right.reveal();
             player.field = [[other, null, null, null], [left, right, null, null], [other, null, null, null]];
 
             const removed = player.removeRow(1);
