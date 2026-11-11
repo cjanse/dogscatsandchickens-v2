@@ -52,27 +52,44 @@ describe("canStartAttack", () => {
     const { game, players } = createTestController();
     const attacker = players[0].field[0][0] as CreatureCard;
 
-    expect(canStartAttack(game, attacker)).toBe(true);
+    expect(canStartAttack(game, attacker, 0)).toBe(true);
     game.turn.useMove();
-    expect(canStartAttack(game, attacker)).toBe(false);
+    expect(canStartAttack(game, attacker, 0)).toBe(false);
   });
 
   it("refuses on a first turn", () => {
     const { game, players } = createTestController({ turnCounts: [0, 1] });
-    expect(canStartAttack(game, players[0].field[0][0] as CreatureCard)).toBe(false);
+    expect(canStartAttack(game, players[0].field[0][0] as CreatureCard, 0)).toBe(false);
   });
 
-  it("lets an active matched Cat attack again, but not another creature", () => {
+  it("lets only the matched Cat that attacked attack again, from either card of its pair", () => {
     const cat = makeCreature("twin_cat", "cat", "multipleAttacks");
+    const catTwin = makeCreature("twin_cat", "cat", "multipleAttacks");
+    const otherCat = makeCreature("other_cat", "cat", "multipleAttacks");
+    const otherTwin = makeCreature("other_cat", "cat", "multipleAttacks");
     const dog = makeCreature("dog");
     const { game } = createTestController();
-    matchPair(cat, makeCreature("twin_cat", "cat", "multipleAttacks"), { active: true });
+    matchPair(cat, catTwin, { active: true });
+    matchPair(otherCat, otherTwin, { active: true });
 
     game.turn.beginAttack({ card: cat, row: 0, col: 0 });
     game.turn.useAllMoves(game.maxMovesPerTurn);
-    game.turn.finishAttack(true);
+    game.turn.finishAttack(0);
 
-    expect(canStartAttack(game, cat)).toBe(true);
-    expect(canStartAttack(game, dog)).toBe(false);
+    expect(canStartAttack(game, cat, 0)).toBe(true);
+    expect(canStartAttack(game, catTwin, 0)).toBe(true);
+    expect(canStartAttack(game, otherCat, 1)).toBe(false);
+    expect(canStartAttack(game, dog, 2)).toBe(false);
+  });
+
+  it("allows no extra attack when the attacker is not an active matched Cat", () => {
+    const dog = makeCreature("dog");
+    const { game } = createTestController();
+
+    game.turn.beginAttack({ card: dog, row: 0, col: 0 });
+    game.turn.useAllMoves(game.maxMovesPerTurn);
+    game.turn.finishAttack(null);
+
+    expect(canStartAttack(game, dog, 0)).toBe(false);
   });
 });

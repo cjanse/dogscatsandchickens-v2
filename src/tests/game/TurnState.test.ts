@@ -9,7 +9,7 @@ describe("TurnState", () => {
     expect(turn.turnType).toBe("reinforce");
     expect(turn.hasDrawn).toBe(false);
     expect(turn.attackingCard).toBeNull();
-    expect(turn.allowExtraAttack).toBe(false);
+    expect(turn.extraAttackRow).toBeNull();
   });
 
   it("counts moves one at a time, or all at once", () => {
@@ -34,9 +34,9 @@ describe("TurnState", () => {
     expect(turn.attackingCard).toBe(attacker);
     expect(turn.turnType).toBe("attack");
 
-    turn.finishAttack(true);
+    turn.finishAttack(0);
     expect(turn.attackingCard).toBeNull();
-    expect(turn.allowExtraAttack).toBe(true);
+    expect(turn.extraAttackRow).toBe(0);
     expect(turn.turnType).toBe("attack");
   });
 
@@ -53,13 +53,13 @@ describe("TurnState", () => {
   it("cancelling a second attack keeps the turn an attack turn once a matched Cat has attacked", () => {
     const turn = new TurnState();
     turn.beginAttack({ card: makeCreature(), row: 0, col: 0 });
-    turn.finishAttack(true);
+    turn.finishAttack(0);
     turn.beginAttack({ card: makeCreature(), row: 0, col: 0 });
 
     turn.cancelAttack();
 
     expect(turn.attackingCard).toBeNull();
-    expect(turn.allowExtraAttack).toBe(true);
+    expect(turn.extraAttackRow).toBe(0);
     expect(turn.turnType).toBe("attack");
   });
 
@@ -68,7 +68,7 @@ describe("TurnState", () => {
     turn.useMove();
     turn.markDrawn();
     turn.beginAttack({ card: makeCreature(), row: 0, col: 0 });
-    turn.finishAttack(true);
+    turn.finishAttack(0);
 
     turn.reset();
 
@@ -76,6 +76,6 @@ describe("TurnState", () => {
     expect(turn.turnType).toBe("reinforce");
     expect(turn.hasDrawn).toBe(false);
     expect(turn.attackingCard).toBeNull();
-    expect(turn.allowExtraAttack).toBe(false);
+    expect(turn.extraAttackRow).toBeNull();
   });
 });

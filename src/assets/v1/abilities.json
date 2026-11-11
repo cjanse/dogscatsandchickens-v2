@@ -1,7 +1,7 @@
 {
     "multipleAttacks": {
         "name": "Multiple Attacks",
-        "description": "On an attack turn, this Cat may attack again and again for as long as it survives."
+        "description": "On an attack turn, this same Cat may attack again and again for as long as it survives."
     },
     "alwaysWin": {
         "name": "Defeats Any Creature",

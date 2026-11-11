@@ -35,10 +35,10 @@ export function canDraw(game: GameBoard): boolean {
 
 /**
  * Whether the current player's `creature` may start an attack. An attack must be the first move of the
- * turn, except that a matched Cat may attack again after its attack. Never on a first turn.
+ * turn, except that the matched Cat that just attacked (the pair at `row`) may attack again. Never on a first turn.
  */
-export function canStartAttack(game: GameBoard, creature: CreatureCard): boolean {
+export function canStartAttack(game: GameBoard, creature: CreatureCard, row: number): boolean {
   if (isFirstTurn(game.currentPlayer)) return false;
   const turn = game.turn;
-  return turn.movesThisTurn === 0 || (turn.allowExtraAttack && canAttackAgain(creature));
+  return turn.movesThisTurn === 0 || (turn.extraAttackRow === row && canAttackAgain(creature));
 }

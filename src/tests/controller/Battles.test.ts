@@ -139,6 +139,22 @@ describe("matching abilities", () => {
     expect(controller.canAttackWith(0, 0)).toBe(true);
   });
 
+  it("only the Cat that attacked may attack again, not another matched Cat", () => {
+    const { controller, players } = setupBattle("cat", "cat", { matchedAttacker: true });
+    const otherBottom = makeCreature("other_cat", "cat", "multipleAttacks");
+    const otherTop = makeCreature("other_cat", "cat", "multipleAttacks");
+    matchPair(otherBottom, otherTop, { active: true });
+    players[0].field.push([otherBottom, otherTop, null, null]);
+
+    attack(controller);
+
+    expect(controller.canAttackWith(0, 0)).toBe(true);
+    expect(controller.canAttackWith(0, 1)).toBe(true);
+    expect(controller.canAttackWith(1, 0)).toBe(false);
+    expect(controller.canAttackWith(1, 1)).toBe(false);
+    expect(controller.startAttack(1, 0).success).toBe(false);
+  });
+
   it("an attack flips both cards of a face-down pair", () => {
     const { controller, players, attacker } = setupBattle("cat", "chicken", { matchedAttacker: true });
     const twin = players[0].field[0][1]!;

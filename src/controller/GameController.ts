@@ -414,7 +414,7 @@ export class GameController {
       turn.useAllMoves(this.game.maxMovesPerTurn);
 
       // A matched Cat may attack again. turnType stays "attack" so the player can click the cat again.
-      turn.finishAttack(canAttackAgainThisTurn);
+      turn.finishAttack(canAttackAgainThisTurn ? attacking.row : null);
 
       return { success: true };
     });
@@ -551,8 +551,8 @@ export class GameController {
       return false;
     }
 
-    // The first move of the turn, or a matched Cat attacking again
-    return canStartAttack(this.game, creature);
+    // The first move of the turn, or the matched Cat that just attacked, attacking again
+    return canStartAttack(this.game, creature, row);
   }
 
   isValidAttackTarget(row: number, col: number): boolean {

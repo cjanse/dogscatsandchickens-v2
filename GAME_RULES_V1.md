@@ -88,7 +88,7 @@ Cards turn **face up** when:
 - a creature **attacks or is attacked** (both creatures are revealed),
 - a **Power of Tea** reveals it,
 - a matched pair's **ability is activated** (see Matching), or
-- a face-up matched **Chicken** forces it (see Matching Abilities).
+- a matched **Chicken** is activated, which flips every card on the opponent's field (see Matching Abilities).
 
 Once face up, a card stays face up until it leaves the field. Cards going to the discard pile, or back to a hand, are no longer considered revealed.
 
@@ -158,9 +158,9 @@ When you have a creature on your field, you can place its **identical twin** (sa
 
 | Type | Ability | What it does |
 |---|---|---|
-| **Cat** | *Multiple Attacks* | On an Attack Turn, this cat may attack again and again, choosing a target each time, for as long as it survives. Stop whenever you like. |
+| **Cat** | *Multiple Attacks* | On an Attack Turn, this same cat (the matched pair) may attack again and again, choosing a target each time, for as long as it survives. No other creature may attack again. Stop whenever you like. |
 | **Dog** | *Defeats Any Creature* | This dog wins every battle it starts, even against a Chicken. (Upgrades on the defender still apply.) |
-| **Chicken** | *Opponent Must Have All Face-Up Cards* | When activated, **every** card on the opponent's field flips face up. While this pair stays face up, any creature or upgrade the opponent plays goes onto the field **face up**. |
+| **Chicken** | *Opponent Must Have All Face-Up Cards* | When activated, **every** card on the opponent's field flips face up. This happens once, when the pair is activated. Cards the opponent plays later are still placed face down. |
 
 > A matched Dog that attacks a Chicken protected by **Counter Attack** is itself defeated — see below.
 
