@@ -56,7 +56,7 @@ export default function GamePageV1Diagnostics() {
       <h1>Dogs, Cats, and Chickens (v1) - Diagnostics</h1>
 
       <p>Deck size: {game.deck.size}</p>
-      <p>Current player: {game.players[game.currentPlayerIndex].id}{controls.isMyTurn ? "" : " (AI)"}</p>
+      <p>Current player: {game.currentPlayer.id}{controls.isMyTurn ? "" : " (AI)"}</p>
 
       {/* Opponent */}
       <div style={{ marginBottom: 32 }}>

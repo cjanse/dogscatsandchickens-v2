@@ -13,7 +13,7 @@ import type { CardView, GameView, PlayerView } from "../model/game/views";
 import { resolveBattle } from "../model/rules/Battle";
 import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
 import { setUpGame } from "../model/rules/Setup";
-import { lossResult, playerHasCreatures, tieResult } from "../model/rules/GameEnd";
+import { lossResult, tieResult } from "../model/rules/GameEnd";
 import { HAND_LIMIT, isOverHandLimit } from "../model/rules/HandLimit";
 import { canPlaceCreature, canPlaceUpgrade } from "../model/rules/Placement";
 import {
@@ -28,6 +28,7 @@ import {
   stealRandomCard,
 } from "../model/rules/Actions";
 import { isCardVisible } from "../model/rules/Visibility";
+import { canDraw, canStartAttack, firstTurnAllows, isFirstTurn } from "../model/rules/Turn";
 import { AIController } from "./AIController";
 
 //Types
@@ -264,21 +265,13 @@ export class GameController {
     });
   }
 
-  /**
-   * A draw costs no move. It isn't available on a first turn, with an empty deck,
-   * or (during a recovery turn) until the player has a creature on the field.
-   */
+  /** Whether the current player may draw now. The draw rules (first turn, recovery turn) are `canDraw` in rules/Turn.ts. */
   canDrawCard(): boolean {
-    if (this.isGameOver()) return false;
-    const player = this.game.currentPlayer;
-    return !this.game.turn.hasDrawn &&
-      this.game.deck.size > 0 &&
-      player.turnCount !== 0 &&
-      playerHasCreatures(player);
+    return !this.isGameOver() && canDraw(this.game);
   }
 
   isFirstTurn(): boolean {
-    return this.game.currentPlayer.turnCount === 0;
+    return isFirstTurn(this.game.currentPlayer);
   }
 
   /** True while the current player owes a draw. No move or end of turn is allowed until they draw. */
@@ -490,8 +483,7 @@ export class GameController {
   /** Power of Tea targets a face-down card on the opponent's field while a Tea card is waiting for its target. */
   private canUsePowerOfTea(owner: PlayerView, row: number, col: number): boolean {
     return this.pendingAction === "powerOfTea" &&
-      this.selectedCard !== null &&
-      this.canPlayHandCard(this.game.currentPlayer, this.selectedCard) &&
+      this.canStillPlayActingCard() &&
       this.game.currentPlayer.id !== owner.id &&
       canRevealWithTea(owner, row, col);
   }
@@ -504,13 +496,12 @@ export class GameController {
       return false;
     }
 
-    if (this.isGameOver() || this.mustDrawFirst() || this.isFirstTurn()) {
+    if (this.isGameOver() || this.mustDrawFirst()) {
       return false;
     }
 
-    // Allow first attack (no moves used yet) or matched cat extra attack
-    const turn = this.game.turn;
-    return turn.movesThisTurn === 0 || (turn.allowExtraAttack && canAttackAgain(creature));
+    // The first move of the turn, or a matched Cat attacking again
+    return canStartAttack(this.game, creature);
   }
 
   isValidAttackTarget(row: number, col: number): boolean {
@@ -531,7 +522,7 @@ export class GameController {
 
     // An attack is waiting for its target: only the opponent's creatures can be clicked
     if (this.pendingAction === "attack") {
-      return owner.id !== current.id && owner.field[row]?.[col]?.type === "creature";
+      return owner.id !== current.id && this.isValidAttackTarget(row, col);
     }
 
     // A Power of Tea card is waiting for its target
@@ -641,8 +632,8 @@ export class GameController {
   }
 
   /**
-   * Starts the action behind a selected action card. Messy Dorm takes effect at once and is charged
-   * when the reveal ends (see clearRevealIfNeeded). The others wait for a target: clickField for
+   * Starts the action behind a selected action card. Messy Dorm takes effect and is charged at once;
+   * the card is discarded when the reveal ends (see clearRevealIfNeeded). The others wait for a target: clickField for
    * Power of Tea, interactWithOpponentCard for Bird Army, selectDiscardPileCard for the Spirits.
    */
   private playHandActionCard(player: Player, card: ActionCard): PlayResult {
@@ -652,6 +643,9 @@ export class GameController {
         return { success: true };
       case "messyDorm":
         startHandReveal(this.game, player, card);
+        // Charge the move now, so the moves left are right while the reveal lasts and the
+        // next card picked can't use a move the Dorm already spent
+        this.game.turn.useMove();
         this.pendingAction = "revealHand";
         return { success: true };
       case "birdArmy":
@@ -675,8 +669,7 @@ export class GameController {
    */
   canPlayHandCard(player: PlayerView, card: CardView): boolean {
     if (!this.canMakeMove() || player.id !== this.game.currentPlayer.id || !player.hand.some(c => c.instanceId === card.instanceId)) return false;
-    // First turn: only a creature may be played
-    if (this.isFirstTurn() && card.type !== "creature") return false;
+    if (!firstTurnAllows(player, card)) return false;
     return isPlayableCard(this.game, player, card);
   }
 
@@ -687,6 +680,15 @@ export class GameController {
   private actingCard(): Card | null {
     const card = this.selectedCard;
     return card && this.game.currentPlayer.hand.includes(card) ? card : null;
+  }
+
+  /**
+   * Whether the action card waiting for its target can still be played. Checked again when the target
+   * is picked, so an action can never resolve without a move left to pay for it.
+   */
+  private canStillPlayActingCard(): boolean {
+    const acting = this.actingCard();
+    return !!acting && this.canPlayHandCard(this.game.currentPlayer, acting);
   }
 
   interactWithOpponentCard(playerView: PlayerView, card: CardView): PlayResult {
@@ -723,7 +725,7 @@ export class GameController {
   canInteractWithOpponentCard(player: PlayerView): boolean {
     if (this.isGameOver()) return false;
     if (player.id === this.game.currentPlayer.id) return false;
-    return this.pendingAction === "stealCard";
+    return this.pendingAction === "stealCard" && this.canStillPlayActingCard();
   }
   // End can interact with opponent card logic suite
 
@@ -764,7 +766,7 @@ export class GameController {
     if (!card) return false;
     if (!isRevivePending(this.pendingAction)) return false;
     const acting = this.actingCard();
-    return !!acting && canRevive(acting, card);
+    return !!acting && this.canStillPlayActingCard() && canRevive(acting, card);
   }
   //End can interact with Discard pile Logic suite
 
@@ -809,22 +811,27 @@ export class GameController {
     this.pendingAction = null;
   }
 
-  /** Ends a Messy Dorm reveal the current player started: the Dorm that was played is discarded and its move charged now. */
+  /** Ends a Messy Dorm reveal the current player started: the Dorm that was played is discarded. Its move was charged when it was played. */
   private clearRevealIfNeeded() {
     const effect = endHandReveal(this.game, this.game.currentPlayer);
-    if (effect) this.completeAction(effect.cardInstanceId);
+    if (effect) this.discardActionCard(effect.cardInstanceId);
   }
 
   /**
    * An action card has resolved: discard it from the current player's hand, drop the selection and the
-   * pending action, and charge the move. Every action ends here, so the order is the same for all of them.
+   * pending action, and charge the move. Every action but Messy Dorm (charged when played) ends here.
    */
   private completeAction(actingInstanceId: string): void {
+    this.discardActionCard(actingInstanceId);
+    this.game.turn.useMove();
+  }
+
+  /** Discards a played action card from the current player's hand, and drops the selection and the pending action. */
+  private discardActionCard(actingInstanceId: string): void {
     const acting = this.game.currentPlayer.removeFromHand(actingInstanceId);
     if (acting) this.game.discard(acting);
     if (this.selectedCard?.instanceId === actingInstanceId) this.selectedCard = null;
     this.pendingAction = null;
-    this.game.turn.useMove();
   }
 
   // Turn Management
@@ -840,8 +847,7 @@ export class GameController {
         return { success: false, reason: `Discard down to ${HAND_LIMIT} cards first` };
       }
 
-      // Clear temporary effects first: clearing a Messy Dorm reveal charges a move to
-      // this turn, and nextTurn() below then resets the turn state for the next player.
+      // End this player's temporary effects (a Messy Dorm reveal) before play passes on
       this.resetTemporaryEffectsIfNeeded();
       this.selectedCard = null;
 
