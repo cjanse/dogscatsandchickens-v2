@@ -22,7 +22,7 @@ export type GameQueries = Pick<
   | "getMovesLeft"
   | "getMaxMoves"
   | "getTurnType"
-  | "hasExtraHandCards"
+  | "canStartDiscardPhase"
   | "getPendingAction"
 >;
 
@@ -94,8 +94,6 @@ export function useGameController({ player2IsAI = true }: { player2IsAI?: boolea
     return result.success;
   }
 
-  const hasExtraHandCards = isMyTurn && controller.hasExtraHandCards(viewer);
-
   return {
     queries: controller,
     game,
@@ -105,8 +103,8 @@ export function useGameController({ player2IsAI = true }: { player2IsAI?: boolea
     result: controller.getGameResult(),
     message,
     dismissMessage: () => setMessage(null),
-    showDiscardExtra: hasExtraHandCards && controller.getPendingAction() !== "discardExtraCards",
-    canFinishTurn: !hasExtraHandCards && controller.canFinishTurn(),
+    showDiscardExtra: controller.canStartDiscardPhase(),
+    canFinishTurn: controller.canFinishTurn(),
     clickField: (owner, row, col) => { run(() => controller.clickField(owner, row, col)); },
     clickHandCard: card => { run(() => controller.clickHandCard(viewer, card)); },
     clickOpponentHandCard: card => { run(() => controller.interactWithOpponentCard(opponent, card)); },

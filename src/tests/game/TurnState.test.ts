@@ -40,6 +40,29 @@ describe("TurnState", () => {
     expect(turn.turnType).toBe("attack");
   });
 
+  it("cancelling an attack goes back to reinforce", () => {
+    const turn = new TurnState();
+    turn.beginAttack({ card: makeCreature(), row: 0, col: 0 });
+
+    turn.cancelAttack();
+
+    expect(turn.attackingCard).toBeNull();
+    expect(turn.turnType).toBe("reinforce");
+  });
+
+  it("cancelling a second attack keeps the turn an attack turn once a matched Cat has attacked", () => {
+    const turn = new TurnState();
+    turn.beginAttack({ card: makeCreature(), row: 0, col: 0 });
+    turn.finishAttack(true);
+    turn.beginAttack({ card: makeCreature(), row: 0, col: 0 });
+
+    turn.cancelAttack();
+
+    expect(turn.attackingCard).toBeNull();
+    expect(turn.allowExtraAttack).toBe(true);
+    expect(turn.turnType).toBe("attack");
+  });
+
   it("reset clears everything", () => {
     const turn = new TurnState();
     turn.useMove();

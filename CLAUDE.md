@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-**Dogs, Cats & Chickens** is a 2-player card game (human vs. human hot-seat, or human vs. a random-move AI), rebuilt as a web app. "v1" is the original game, ported as-is. "v2" is a planned future expansion and does not exist yet.
+**Dogs, Cats & Chickens** is a 2-player card game, played as human vs. a random-move AI, rebuilt as a web app. A human vs. human hot-seat mode is planned: the controller already supports it, but the UI can't start one yet (see TODO, section 4). "v1" is the original game, ported as-is. "v2" is a planned future expansion and does not exist yet.
 
 - **Rules source of truth:** [GAME_RULES_V1.md](GAME_RULES_V1.md). If the code and that file disagree, treat it as a bug in the code (or ask the user), not a reason to change the rules doc.
 - Stack: React 19 + TypeScript (strict) + Vite (aliased to `rolldown-vite`) + Vitest. There is no state library and no router.
@@ -34,7 +34,7 @@ src/
     cards/      Card (abstract), CreatureCard, UpgradeCard, ActionCard, CardFactory
     deck/       Deck (shuffle/draw), DeckFactory (builds from deck.json counts)
     game/       GameBoard (players, deck, discard, currentPlayerIndex, temporaryEffects, turn, result), Player (hand, field), TurnState
-    rules/      Stateless game rules: Matchup (type circle), Battle, Upgrades (the upgrade stack), Matching (matched abilities), Placement (field slots)
+    rules/      Stateless game rules: Matchup (type circle), Battle, Upgrades (the upgrade stack), Matching (matched abilities), Placement (field slots), HandLimit (`HAND_LIMIT`, `isOverHandLimit`), GameEnd (`lossResult`, `tieResult`), Setup (`setUpGame`, the opening deal)
     types/      String-literal union types (CardType, CreatureType, UpgradeType, ActionType, MatchingAbilityType, TurnType, GameResult, CardData)
   controller/
     GameController.ts   Checks moves and coordinates them (validators, pendingAction, the selected card, action cards, click routing, the AI's turns). Views talk only to this. getGameState() returns a read-only GameView; public methods take PlayerView and Card objects (never indexes or instanceId strings) and look up the real Player by id.
@@ -45,7 +45,7 @@ src/
   app/useGameController.ts  The views' only way in: creates the controller, re-renders on its notifications, wraps actions and keeps the last failure as `message`
   view/components/      Shared view pieces (FieldCell, CardImage, DeckPile, DiscardPile, TurnControls, MessageBanner, GameOverScreen). Game behavior inside, size and style from props
   assets/v1/            cards.json (card definitions) and deck.json (copies per card id; 36 cards total)
-  App.tsx               Landing page, then picks a game view
+  App.tsx               Landing page, then picks a game view (always against the AI for now)
   GamePageV1.tsx            Desktop view with card images (the main view)
   GamePageV1Mobile.tsx      Vertical layout for phones
   GamePageV1Diagnostics.tsx Text-only debug view
@@ -62,7 +62,7 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
   - Take cards off the field with `Player.removeFromField(row, col)`, never `row[i] = null`. It resets `facedUp` and `matched`, so the card is clean whether it goes to the hand or the discard pile.
   - `Player.field` only holds rows that have cards in them (it starts as `[]`). To play a creature into a new row, pass `row = -1` (new row above all rows) or `row = field.length` (new row below); `Player.playToField` opens the row. For an empty field only `row = 0` is valid. `Player.removeRow` always deletes the row. The empty "drop here" rows the UI shows come from `fieldRowsWithPlaceholders` in `src/app/fieldRows.ts`, which gives each row its model index (-1 and `field.length` for the placeholders).
 - **Visibility:** `Card.facedUp` means the card is permanently revealed on the field. Temporary reveals, such as Messy Dorm, live in `GameBoard.temporaryEffects`. Views must call `isCardVisibleToPlayer(card, owner)` (`owner` is the `PlayerView` whose hand or field holds the card) and `isFaceUp(card)` (to dim your own face-down cards), and must not read `facedUp` directly. `CardImage` does both.
-- **Viewer vs. current player:** visibility is decided for `getViewer()`, the player whose side the screen shows, not for the current player. Against the AI the viewer is always the human, so the AI's hand stays hidden during its turn. In hot-seat the viewer is the current player (there is no hand-off screen yet). Views draw "you" from `viewer` and never from `game.currentPlayerIndex`.
+- **Viewer vs. current player:** visibility is decided for `getViewer()`, the player whose side the screen shows, not for the current player. Against the AI the viewer is always the human, so the AI's hand stays hidden during its turn. In hot-seat (not reachable from the UI yet) the viewer is the current player. Views draw "you" from `viewer` and never from `game.currentPlayerIndex`.
 - **AI turns are hands-off:** while `isHumanTurn()` is false, the click-level entry points (`clickField`, `clickHandCard`, `interactWithOpponentCard`, `selectDiscardPileCard`, `finishTurn`) return "Wait for the AI to finish its turn", and `canClickField`/`canFinishTurn` are false. The AI never calls those methods, only the lower-level ones (`drawCard`, `playCard`, `startAttack`, ...), so don't add the guard there. The hook also ignores every action when `isMyTurn` is false.
 - **Card images:** the model has no image info. Views use `cardFrontUrl(card)` (looked up by `id` in cards.json) and `cardBackUrl(card)` (depends on the card type: `creature.jpg`, `upgrade.jpg`, `action.jpg`) from `src/app/cardImages.ts`.
 
@@ -84,7 +84,12 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 ## Conventions
 
 - New card behavior: add the literal to the right `types/*.ts` union, add the definition to `cards.json` and `deck.json`, put the rule itself in `src/model/rules/` and the move validator in `GameController`, and add a test. Cards are plain data, so don't add behavior methods to the card classes.
-- Keep the model free of React and controller imports. Keep game rules out of the views.
+- Keep the model free of React and controller imports.
+- Where code goes:
+  - **What the rules say** (legal placements, battle outcomes, card effects, end-of-game checks, who can see a card) goes in `src/model/rules/`, as functions of the model.
+  - **Whether a move is allowed right now, and in what order things happen** goes in `GameController`.
+  - **Views and `useGameController`** only lay things out and pass clicks on. They never combine queries into a rule. If a view needs a yes/no, add a controller query (and add it to `GameQueries`).
+  - Known exceptions are listed as open items under "2. MVC cleanup" below. Don't add new ones.
 - The tsconfig has `erasableSyntaxOnly`, so don't use constructor parameter properties (`constructor(private x: T)`) or `enum`. Use explicit fields and string unions.
 - Tests construct cards through `CardFactory.create(CardData)`. `GameController`'s constructor shuffles and deals 5-card hands, so tests that need an exact state must build `GameBoard` and `Player` directly or account for the deal.
 
@@ -94,7 +99,7 @@ public/assets/v1/cards/*.jpg   Card images, served at /assets/v1/cards/<file>
 
 ## TODO
 
-Work through these in order: bugs, then MVC cleanup, then missing rules. Add a test for every bug fix so the MVC refactor has something to check against. Tick items off here as they are done.
+Work through these in order: bugs, then MVC cleanup, then missing rules, then new features. [TODO_PLAN.md](TODO_PLAN.md) groups them into batches. Add a test for every bug fix so the MVC refactor has something to check against. Tick items off here as they are done.
 
 ### 0. Housekeeping
 - [x] Get `npm run build` passing. (`GamePage.tsx` was renamed to `GamePageV1Diagnostics.tsx`.)
@@ -112,6 +117,7 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] **Counter Attack** behaves exactly like Defense. It should also defeat the attacker when the defender's type beats the attacker's. (Implemented in `model/rules/Upgrades.ts`. It can't fire in a real game under the matched-Dog deviation below, since an attacker then only wins on type or as a matched Dog against a Dog.)
 - [x] **Revive** returns cards to the hand still marked `matched` (and `facedUp`). Reset both whenever a card leaves the field. (Done in the model: `Player.removeFromField` calls `Card.resetFieldState()`.)
 - [x] **AI turn loop:** the AI ignores the first-turn rule and the recovery-turn draw.
+- [x] **Cancelled attack leaves turn state behind:** if a player starts an attack and then clicks a hand card, `selectHandCard` → `resetTemporaryEffectsIfNeeded` clears `pendingAction` but leaves `turn.attackingCard` set and `turnType` at `"attack"`. The only visible effect today is "Turn: attack" after the player places a card. Clear the attack in `TurnState` when the pending attack is dropped. `turnType` should go back to `"reinforce"` unless an attack already resolved this turn (a matched Cat). (`TurnState.cancelAttack()`, called from `resetTemporaryEffectsIfNeeded`.)
 
 ### 2. MVC cleanup
 - [x] Move turn state (`movesThisTurn`, `maxMovesPerTurn`, `turnType`, `hasDrawn`, `attackingCard`, `allowExtraAttack`, `gameResult`) from `GameController` into the model, for example a `TurnState` held by `GameBoard`. (`TurnState` on `GameBoard.turn`; `gameResult` is `GameBoard.result` so it survives the per-turn reset; `maxMovesPerTurn` is derived from `turnCount`.)
@@ -124,6 +130,16 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] Remove the copied logic between `GamePageV1`, `GamePageV1Mobile` and `GamePageV1Diagnostics`. Use a shared `useGameController` hook that re-renders when the controller notifies it, so views don't need `forceUpdate`. Views should only do layout. (`src/app/useGameController.ts` plus `src/view/components/`. Mobile now shows your own face-down field cards dimmed instead of as card backs, like desktop.)
 - [x] Replace `alert()` with in-UI messages, and remove `console.log` from the controller. (`MessageBanner`; the controller had no `console.log` left.)
 
+Follow-ups from the M1–M6 review, where the code still breaks the "Where code goes" convention:
+- [x] **Hand limit only checked in the hook:** "discard down to 5 before ending your turn" is enforced only by `canFinishTurn: !hasExtraHandCards && …` in `useGameController.ts`. `endTurn()` and `finishTurn()` accept a hand of 6 or more. Put the limit in the model (a `HAND_LIMIT` constant), make `canEndTurn`/`endTurn` refuse while the hand is over it, and give the hook controller queries for "can finish" and "show Discard Extra" so it stops combining them. The AI already discards before it ends its turn. (`HAND_LIMIT` in `rules/HandLimit.ts`; `canEndTurn`/`endTurn` refuse while over it, and the hook uses `canFinishTurn()` and `canStartDiscardPhase()`.)
+- [x] **End-of-game checks in the controller:** `checkLossCondition`, `checkTieCondition`, `playerHasCreatures`, `allCreaturesSameType` and `playerHasPlayableHand` are rules. Move them to `src/model/rules/` (for example `GameEnd.ts`) as functions of the board that return a `GameResult`. The controller calls them at the end of a turn and records the result with `GameBoard.endGame`. The tie check uses the controller's `canPlayHandCard`, so either pass that in as a predicate or check only whether the cards could be placed. (`rules/GameEnd.ts` takes the predicate. The controller's `canPlayHandCard` only accepts the current player, so the tie check in practice looks at the hand of the player about to move. M8 can replace the predicate when the action conditions move to the model.)
+- [x] **Opening deal in the controller:** `dealStartingHand` should live in the model (for example `rules/Setup.ts`), so the Setup rule in section 3 changes a model function. (`rules/Setup.ts`: `setUpGame`, `dealStartingHand`. Behavior unchanged. The deal's `facedUp` write now happens in the model.)
+- [ ] **Action-card effects in the controller:** the steal (including its random pick), Spirit revives from the discard pile, the Power of Tea reveal, the Messy Dorm reveal effect and `canPlayHandAction`'s conditions should move to `src/model/rules/` (for example `Actions.ts`). The controller keeps `pendingAction`, the selected card and charging the move.
+- [ ] **Visibility rule in the controller:** the logic of `isCardVisibleToPlayer` (own cards, `facedUp`, Messy Dorm reveals) should be a model rule that takes the viewer as an argument. `getViewer()` stays in the controller, because who sits at the screen is not a game rule.
+- [ ] **Card state can still be changed from outside the model:** the controller writes `card.facedUp` directly (`drawCard` and Power of Tea; the opening deal now lives in the model), and views get `Card` objects with writable fields. Route those writes through model methods (like the existing `resetFieldState()`), and give the views a read-only `CardView` in `model/game/views.ts`.
+- [ ] **Signatures, round 2:** `drawCard(player)`, `clickHandCard(player, card)` and `selectHandCard(player, card)` take a player even though only the current player can act. That breaks the rule under "Controller flow" (methods that only act for the current player take no player argument). Drop the argument, or document why they're exceptions.
+- [ ] **`Player.playToField` can't report failure:** it returns `null` both for "placed, no match" and "couldn't place", so `playCreatureCard`/`playUpgradeCard` always report success and rely on the validator having run first. Return a result that tells the two apart, and only look for a matching twin when the card goes in col 0 or 1.
+
 ### 3. Missing rules
 - [ ] **Win condition:** the opponent has no creatures on the field or in their hand. A `win` result is never set yet, and the end screen only shows a loss.
 - [ ] **Matched Chicken:** while the pair is face up, the opponent's newly played creatures and upgrades must go down face up. Only the one-time reveal exists.
@@ -133,3 +149,8 @@ Work through these in order: bugs, then MVC cleanup, then missing rules. Add a t
 - [x] **First turn:** only a creature may be played.
 - [ ] **Setup:** deal 3 random creatures and then 2 more cards. Right now the controller redraws whole 5-card hands until one has at least 3 creatures.
 - [x] **Draw first:** the player must draw before making any move.
+
+### 4. Features not built yet
+- [ ] **Hot-seat (human vs. human) mode.** This is a planned feature, not a bug. The model and controller already support it: `useGameController({ player2IsAI: false })` creates a game with two humans, `getViewer()` is then the current player, and tests cover that path. The UI just has no way to start one: `App.tsx` renders the game views without options, and `useGameController` defaults to `player2IsAI = true`. To build it:
+  - Add a landing-page choice and pass it through the game views to `useGameController`.
+  - Add a hand-off screen between turns, so the next player doesn't see the previous player's hand.

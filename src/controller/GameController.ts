@@ -6,12 +6,14 @@ import { Card } from "../model/cards/Card";
 import { ActionCard } from "../model/cards/ActionCard";
 import type { UpgradeCard } from "../model/cards/UpgradeCard";
 import type { CreatureCard } from "../model/cards/CreatureCard";
-import type { CreatureType } from "../model/types/CreatureType";
 import type { TurnType } from "../model/types/TurnType";
 import type { GameResult } from "../model/types/GameResult";
 import type { GameView, PlayerView } from "../model/game/views";
 import { resolveBattle } from "../model/rules/Battle";
 import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
+import { setUpGame } from "../model/rules/Setup";
+import { lossResult, playerHasCreatures, tieResult } from "../model/rules/GameEnd";
+import { HAND_LIMIT, isOverHandLimit } from "../model/rules/HandLimit";
 import { canPlaceCreature, canPlaceUpgrade, hasUpgradeSlot } from "../model/rules/Placement";
 import { AIController } from "./AIController";
 
@@ -60,8 +62,7 @@ export class GameController {
 
     this.game = new GameBoard([player1, player2], deck);
 
-    // Initialize the game: shuffle and deal starting hands
-    this.initializeGame();
+    setUpGame(this.game);
   }
 
   /**
@@ -72,57 +73,6 @@ export class GameController {
     const controller = new GameController({}, {});
     controller.game = board;
     return controller;
-  }
-
-  private initializeGame(): void {
-    // Shuffle the deck
-    this.game.deck.shuffle();
-
-    // Deal 5 cards to each player with minimum 3 creature cards
-    for (const player of this.game.players) {
-      this.dealStartingHand(player);
-    }
-  }
-
-  private dealStartingHand(player: Player): void {
-    const cardsPerPlayer = 5;
-    const minCreatureCards = 3;
-    let hand: Card[] = [];
-    let creatureCount = 0;
-
-    // Draw cards until we have 5 cards with at least 3 creatures
-    while (hand.length < cardsPerPlayer) {
-      const card = this.game.deck.draw();
-      if (!card) break; // No more cards in deck
-
-      hand.push(card);
-      card.facedUp = false;
-
-      if (card.type === "creature") {
-        creatureCount++;
-      }
-
-      // If we have 5 cards and minimum creatures, we're done
-      if (hand.length === cardsPerPlayer && creatureCount >= minCreatureCards) {
-        break;
-      }
-
-      // If we have 5 cards but not enough creatures, put cards back and try again
-      if (hand.length === cardsPerPlayer && creatureCount < minCreatureCards) {
-        // Return cards to bottom of deck and reset
-        for (let i = hand.length - 1; i >= 0; i--) {
-          this.game.deck.putCardBack(hand[i]);
-        }
-        hand = [];
-        creatureCount = 0;
-        this.game.deck.shuffle();
-      }
-    }
-
-    // Add the final hand to the player
-    for (const card of hand) {
-      player.addToHand(card);
-    }
   }
 
   /** Read-only access for the UI. Every change goes through this controller. */
@@ -220,7 +170,15 @@ export class GameController {
   }
 
   hasExtraHandCards(player: PlayerView): boolean {
-    return player.hand.length > 5;
+    return isOverHandLimit(player);
+  }
+
+  /** Whether "Discard Extra" is available: the current player is a human over the hand limit and hasn't started discarding. */
+  canStartDiscardPhase(): boolean {
+    return !this.isGameOver() &&
+      this.isHumanTurn() &&
+      this.hasExtraHandCards(this.game.currentPlayer) &&
+      this.pendingAction !== "discardExtraCards";
   }
 
   startDiscardPhase(): PlayResult {
@@ -246,7 +204,7 @@ export class GameController {
 
       this.game.discard(removed);
 
-      // If hand is now 5 or fewer, end discard phase
+      // Once the hand is back within the limit, the discard phase is over
       if (!this.hasExtraHandCards(this.game.currentPlayer)) {
         this.pendingAction = null;
       }
@@ -254,62 +212,6 @@ export class GameController {
       return { success: true };
     });
   }
-
-  private playerHasCreatures(player: Player): boolean {
-    return player.field.some(row =>
-      row.some(card => card?.type === "creature")
-    );
-  }
-
-  private allCreaturesSameType(): boolean {
-    const creatureTypes = new Set<CreatureType>();
-
-    for (const player of this.game.players) {
-      for (const row of player.field) {
-        for (const card of row) {
-          if (card?.type === "creature") {
-            creatureTypes.add((card as CreatureCard).creatureType);
-          }
-        }
-      }
-    }
-
-    return creatureTypes.size <= 1;
-  }
-
-  private playerHasPlayableHand(player: Player): boolean {
-    return player.hand.some(card =>
-      this.canPlayHandCard(player, card)
-    );
-  }
-
-  private checkLossCondition(player: Player): boolean {
-    if (!this.playerHasCreatures(player)) {
-      this.game.endGame({
-        state: "loss",
-        loserId: player.id
-      });
-      return true;
-    }
-    return false;
-  }
-
-  private checkTieCondition(): boolean {
-    const noCardsToDraw = this.game.deck.size === 0;
-    const sameCreatureType = this.allCreaturesSameType();
-
-    const noPlayableHands = this.game.players.every(
-      p => !this.playerHasPlayableHand(p)
-    );
-
-    if (noCardsToDraw && sameCreatureType && noPlayableHands) {
-      this.game.endGame({ state: "tie" });
-      return true;
-    }
-
-    return false;
-  }
-  //end game result logic suite
 
   /** Player actions */
   drawCard(playerView: PlayerView): PlayResult {
@@ -339,7 +241,7 @@ export class GameController {
       player === this.game.currentPlayer &&
       this.game.deck.size > 0 &&
       player.turnCount !== 0 &&
-      this.playerHasCreatures(player);
+      playerHasCreatures(player);
   }
 
   isFirstTurn(): boolean {
@@ -352,7 +254,9 @@ export class GameController {
   }
 
   canEndTurn(): boolean {
-    return !this.isGameOver() && !this.mustDrawFirst();
+    return !this.isGameOver() &&
+      !this.mustDrawFirst() &&
+      !this.hasExtraHandCards(this.game.currentPlayer);
   }
 
   /** Whether the End Turn button works: the turn can end and it belongs to a human (the AI ends its own). */
@@ -973,6 +877,8 @@ export class GameController {
   //reset Temporary Effects if needed logic suite
   private resetTemporaryEffectsIfNeeded() {
     this.clearRevealIfNeeded(this.game.currentPlayer);
+    // An attack that was started but not resolved is dropped, in the turn state too
+    if (this.pendingAction === "attack") this.game.turn.cancelAttack();
     this.pendingAction = null;
   }
 
@@ -1012,21 +918,26 @@ export class GameController {
       if (this.mustDrawFirst()) {
         return { success: false, reason: "You must draw first" };
       }
+      if (this.hasExtraHandCards(this.game.currentPlayer)) {
+        return { success: false, reason: `Discard down to ${HAND_LIMIT} cards first` };
+      }
 
       // Clear temporary effects first: clearing a Messy Dorm reveal charges a move to
       // this turn, and nextTurn() below then resets the turn state for the next player.
       this.resetTemporaryEffectsIfNeeded();
       this.selectedCard = null;
 
-      // LOSS CHECK
-      if (this.checkLossCondition(this.game.currentPlayer)) {
+      const loss = lossResult(this.game.currentPlayer);
+      if (loss.state !== "ongoing") {
+        this.game.endGame(loss);
         return { success: true };
       }
 
       // Counts the finished turn, passes play on, and resets the turn state
       this.game.nextTurn();
 
-      this.checkTieCondition();
+      const tie = tieResult(this.game, (player, card) => this.canPlayHandCard(player, card));
+      if (tie.state !== "ongoing") this.game.endGame(tie);
       return { success: true };
     });
   }

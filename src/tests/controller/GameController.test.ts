@@ -348,4 +348,51 @@ describe("GameController", () => {
       expect(controller.playCard(players[0], twin, 0, 1).success).toBe(true);
     });
   });
+
+  describe("hand limit", () => {
+    const sixCards = () => Array.from({ length: 6 }, (_, i) => makeCreature(`card_${i}`));
+
+    it("blocks End Turn while the hand is over the limit", () => {
+      const cards = sixCards();
+      const { controller, game } = createTestController({ hands: [cards, []] });
+
+      expect(controller.canEndTurn()).toBe(false);
+      expect(controller.canFinishTurn()).toBe(false);
+      expect(controller.endTurn()).toEqual({ success: false, reason: "Discard down to 5 cards first" });
+      expect(controller.finishTurn().success).toBe(false);
+      expect(game.currentPlayerIndex).toBe(0);
+    });
+
+    it("lets the turn end once the player has discarded down to the limit", () => {
+      const cards = sixCards();
+      const { controller, game, players } = createTestController({ hands: [cards, []] });
+
+      expect(controller.startDiscardPhase().success).toBe(true);
+      expect(controller.discardHandCard(cards[0]).success).toBe(true);
+
+      expect(players[0].hand).toHaveLength(5);
+      expect(controller.canEndTurn()).toBe(true);
+      expect(controller.endTurn().success).toBe(true);
+      expect(game.currentPlayerIndex).toBe(1);
+    });
+
+    it("offers Discard Extra only while over the limit and not yet discarding", () => {
+      const cards = sixCards();
+      const { controller } = createTestController({ hands: [cards, []] });
+
+      expect(controller.canStartDiscardPhase()).toBe(true);
+      controller.startDiscardPhase();
+      expect(controller.canStartDiscardPhase()).toBe(false);
+      controller.discardHandCard(cards[0]);
+      expect(controller.canStartDiscardPhase()).toBe(false);
+    });
+
+    it("does not offer Discard Extra within the limit or during the AI's turn", () => {
+      const { controller } = createTestController({ hands: [[makeCreature("a")], []] });
+      expect(controller.canStartDiscardPhase()).toBe(false);
+
+      const ai = createTestController({ hands: [[], sixCards()], currentPlayerIndex: 1, player2IsAI: true });
+      expect(ai.controller.canStartDiscardPhase()).toBe(false);
+    });
+  });
 });

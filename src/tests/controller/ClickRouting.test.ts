@@ -77,6 +77,42 @@ describe("clicking the field", () => {
     expect(controller.getSelectedCard()).toBe(cat);
   });
 
+  it("drops the attack from the turn state when a hand card is picked up instead", () => {
+    const creature = makeCreature("new_creature", "chicken");
+    const { controller, game, players } = createTestController({ hands: [[creature], []] });
+
+    controller.clickField(players[0], 0, 0);
+    expect(controller.getPendingAction()).toBe("attack");
+
+    expect(controller.clickHandCard(players[0], creature).success).toBe(true);
+    expect(controller.getPendingAction()).toBeNull();
+    expect(game.turn.attackingCard).toBeNull();
+
+    expect(controller.clickField(players[0], -1, 0).success).toBe(true);
+    expect(controller.getTurnType()).toBe("reinforce");
+    expect(game.turn.attackingCard).toBeNull();
+  });
+
+  it("keeps the turn an attack turn when a matched Cat's extra attack is cancelled", () => {
+    const cat = makeCreature("att_cat", "cat");
+    const twin = makeCreature("att_cat", "cat");
+    cat.matched = true;
+    twin.matched = true;
+    const { controller, game, players } = createTestController({
+      fields: [[cat, twin], [makeCreature("def_cat", "cat")]],
+    });
+    controller.clickField(players[0], 0, 0);
+    controller.clickField(players[1], 0, 0);
+    controller.clickField(players[0], 0, 0);
+    expect(game.turn.attackingCard).not.toBeNull();
+
+    controller.deselectCard();
+
+    expect(controller.getPendingAction()).toBeNull();
+    expect(game.turn.attackingCard).toBeNull();
+    expect(controller.getTurnType()).toBe("attack");
+  });
+
   it("does not start an attack on a first turn", () => {
     const { controller, players } = createTestController({ turnCounts: [0, 0] });
 
@@ -366,6 +402,8 @@ describe("finishTurn and the AI", () => {
     const { controller, players } = createTestController({
       deck: [makeCreature("deck_1"), makeCreature("deck_2")],
       hands: [[], [makeCreature("ai_1", "cat"), makeCreature("ai_2", "chicken")]],
+      // Dog vs Dog is a stand-off, so a random AI attack can't cost it its only creature and end the game
+      fields: [[makeCreature()], [makeCreature("ai_dog")]],
       player2IsAI: true,
     });
     controller.drawCard(players[0]);

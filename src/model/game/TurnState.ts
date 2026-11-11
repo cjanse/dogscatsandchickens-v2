@@ -44,6 +44,15 @@ export class TurnState {
     this.allowExtraAttack = allowExtraAttack;
   }
 
+  /**
+   * Drops an attack that was started but not resolved. The turn goes back to "reinforce", unless a
+   * matched Cat already attacked this turn (`allowExtraAttack`), in which case it stays an attack turn.
+   */
+  cancelAttack(): void {
+    this.attackingCard = null;
+    if (!this.allowExtraAttack) this.turnType = "reinforce";
+  }
+
   reset(): void {
     this.movesThisTurn = 0;
     this.turnType = "reinforce";
