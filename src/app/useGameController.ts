@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { GameController, type GameResult, type PlayResult } from "../controller/GameController";
-import type { Card } from "../model/cards/Card";
-import type { GameView, PlayerView } from "../model/game/views";
+import type { CardView, GameView, PlayerView } from "../model/game/views";
 import { loadV1Assets } from "./loadV1Assets";
 
 /**
@@ -12,7 +11,7 @@ export type GameQueries = Pick<
   GameController,
   | "canClickField"
   | "canPlayHandCard"
-  | "canDrawCard"
+  | "canClickDeck"
   | "canEndTurn"
   | "canInteractWithOpponentCard"
   | "canInteractWithDiscardPileCard"
@@ -53,10 +52,10 @@ export interface GameControls {
   canFinishTurn: boolean;
 
   clickField: (owner: PlayerView, row: number, col: number) => void;
-  clickHandCard: (card: Card) => void;
-  clickOpponentHandCard: (card: Card) => void;
+  clickHandCard: (card: CardView) => void;
+  clickOpponentHandCard: (card: CardView) => void;
   /** Returns true when the pick worked, so the view can close the discard list. */
-  clickDiscardPileCard: (card: Card) => boolean;
+  clickDiscardPileCard: (card: CardView) => boolean;
   drawCard: () => void;
   startDiscardPhase: () => void;
   finishTurn: () => void;
@@ -106,10 +105,10 @@ export function useGameController({ player2IsAI = true }: { player2IsAI?: boolea
     showDiscardExtra: controller.canStartDiscardPhase(),
     canFinishTurn: controller.canFinishTurn(),
     clickField: (owner, row, col) => { run(() => controller.clickField(owner, row, col)); },
-    clickHandCard: card => { run(() => controller.clickHandCard(viewer, card)); },
+    clickHandCard: card => { run(() => controller.clickHandCard(card)); },
     clickOpponentHandCard: card => { run(() => controller.interactWithOpponentCard(opponent, card)); },
     clickDiscardPileCard: card => run(() => controller.selectDiscardPileCard(card)),
-    drawCard: () => { run(() => controller.drawCard(viewer)); },
+    drawCard: () => { run(() => controller.clickDeck()); },
     startDiscardPhase: () => { run(() => controller.startDiscardPhase()); },
     finishTurn: () => { run(() => controller.finishTurn()); },
   };

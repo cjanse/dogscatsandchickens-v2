@@ -9,7 +9,7 @@ export function activateMatchedAbility(board: GameBoard, owner: Player, card: Cr
       // Chicken: every card on the opponent's field flips face up
       for (const row of board.opponentOf(owner).field) {
         for (const fieldCard of row) {
-          if (fieldCard) fieldCard.facedUp = true;
+          if (fieldCard) fieldCard.reveal();
         }
       }
       break;

@@ -126,7 +126,7 @@ export default function GamePageV1Mobile() {
         <p style={{ margin: "4px 0", fontSize: "11px" }}>Hand ({viewer.hand.length})</p>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center", marginBottom: 8 }}>
           {viewer.hand.map((card) => {
-            const selected = queries.getSelectedCard() === card;
+            const selected = queries.getSelectedCard()?.instanceId === card.instanceId;
             const playable = queries.canPlayHandCard(viewer, card);
             return (
               <CardImage

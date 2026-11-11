@@ -90,7 +90,7 @@ describe('Player', () => {
             const matched = player.playToField(twin.instanceId, 0, 1);
 
             expect(player.field).toHaveLength(1);
-            expect(matched?.matchedCard).toBe(twin);
+            expect(matched).toEqual({ placed: true, match: { card: twin, twin: first } });
             expect((first as CreatureCard).matched).toBe(true);
         });
 
@@ -99,9 +99,66 @@ describe('Player', () => {
             const card = CardFactory.create(dogData());
             player.addToHand(card);
 
-            expect(player.playToField(card.instanceId, 3, 0)).toBeNull();
+            expect(player.playToField(card.instanceId, 3, 0)).toEqual({ placed: false });
             expect(player.field).toEqual([]);
             expect(player.hand).toEqual([card]);
+        });
+    });
+
+    describe('playToField results', () => {
+        const dogData = (): CardData => ({
+            id: 'dog_basic',
+            name: 'Basic Dog',
+            type: 'creature',
+            creatureType: 'dog',
+            matchingAbilityType: 'alwaysWin'
+        });
+
+        it('reports a placement with no match', () => {
+            const player = new Player(0);
+            const card = CardFactory.create(dogData());
+            player.addToHand(card);
+
+            expect(player.playToField(card.instanceId, 0, 0)).toEqual({ placed: true, match: null });
+        });
+
+        it('reports failure for an occupied slot and leaves no extra row behind', () => {
+            const player = new Player(0);
+            const first = CardFactory.create(dogData());
+            const second = CardFactory.create({ ...dogData(), id: 'other_dog' });
+            player.addToHand(first);
+            player.addToHand(second);
+            player.playToField(first.instanceId, 0, 0);
+
+            expect(player.playToField(second.instanceId, 0, 0)).toEqual({ placed: false });
+            expect(player.field).toHaveLength(1);
+            expect(player.hand).toEqual([second]);
+        });
+
+        it('reports failure for a column that does not exist, without opening a row', () => {
+            const player = new Player(0);
+            const card = CardFactory.create(dogData());
+            player.addToHand(card);
+
+            expect(player.playToField(card.instanceId, 0, 7)).toEqual({ placed: false });
+            expect(player.field).toEqual([]);
+        });
+
+        it('reports failure for a card that is not in the hand', () => {
+            const player = new Player(0);
+            expect(player.playToField('missing', 0, 0)).toEqual({ placed: false });
+        });
+
+        it('does not look for a twin when an upgrade is placed', () => {
+            const player = new Player(0);
+            const creature = CardFactory.create(dogData());
+            const upgrade = CardFactory.create({ id: 'dog_basic', name: 'Same id', type: 'upgrade', upgradeType: 'defense' } as CardData);
+            player.addToHand(creature);
+            player.addToHand(upgrade);
+            player.playToField(creature.instanceId, 0, 0);
+
+            expect(player.playToField(upgrade.instanceId, 0, 2)).toEqual({ placed: true, match: null });
+            expect((creature as CreatureCard).matched).toBe(false);
         });
     });
 
@@ -118,7 +175,7 @@ describe('Player', () => {
             const player = new Player(1, 1);
             const card = CardFactory.create(dog()) as CreatureCard;
             player.field[0][0] = card;
-            card.facedUp = true;
+            card.reveal();
             card.matched = true;
 
             const removed = player.removeFromField(0, 0);
@@ -138,7 +195,7 @@ describe('Player', () => {
                 upgradeType: 'fakeUpgrade'
             });
             player.field[0][2] = upgrade;
-            upgrade.facedUp = true;
+            upgrade.reveal();
 
             expect(player.removeFromField(0, 2)).toBe(upgrade);
             expect(upgrade.facedUp).toBe(false);
@@ -166,7 +223,8 @@ describe('Player', () => {
             const right = dog();
             const other = dog();
             left.matched = right.matched = true;
-            left.facedUp = right.facedUp = true;
+            left.reveal();
+            right.reveal();
             player.field = [[other, null, null, null], [left, right, null, null], [other, null, null, null]];
 
             const removed = player.removeRow(1);

@@ -1,10 +1,9 @@
 import type { GameController } from "./GameController";
-import type { PlayerView } from "../model/game/views";
-import type { Card } from "../model/cards/Card";
+import type { CardView, PlayerView } from "../model/game/views";
 
 interface Move {
   type: "placeCard" | "attack";
-  card?: Card;
+  card?: CardView;
   row?: number;
   col?: number;
   targetRow?: number;
@@ -30,7 +29,7 @@ export class AIController {
 
     // Draw first. On a recovery turn the draw only becomes available once a
     // creature is on the field, so retry after every move.
-    this.drawIfPossible(currentPlayer);
+    this.drawIfPossible();
 
     // Keep making moves while there are moves left
     while (this.gameController.getMovesLeft() > 0) {
@@ -42,7 +41,7 @@ export class AIController {
 
       const randomMove = moves[Math.floor(Math.random() * moves.length)];
       this.executeMove(randomMove, currentPlayer);
-      this.drawIfPossible(currentPlayer);
+      this.drawIfPossible();
     }
 
     // Handle card discard if needed
@@ -53,9 +52,9 @@ export class AIController {
     }
   }
 
-  private drawIfPossible(player: PlayerView): void {
-    if (this.gameController.canDrawCard(player)) {
-      this.gameController.drawCard(player);
+  private drawIfPossible(): void {
+    if (this.gameController.canDrawCard()) {
+      this.gameController.drawCard();
     }
   }
 

@@ -21,7 +21,7 @@ describe("opening deal", () => {
     // The shuffle is random, so repeat it
     for (let i = 0; i < 50; i++) {
       const board = new GameBoard([new Player(0, 0, 4, false), new Player(1, 0, 4, false)], makeDeck());
-      board.deck.peek()!.facedUp = true; // a card that is face up must still be dealt face down
+      board.deck.peek()!.reveal(); // a card that is face up must still be dealt face down
 
       setUpGame(board);
 

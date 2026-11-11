@@ -19,8 +19,8 @@ export type BattleOutcome =
 
 /** Flips both creatures face up and resolves the attack. */
 export function resolveBattle(board: GameBoard, attacker: Combatant, defender: Combatant): BattleOutcome {
-  attacker.card.facedUp = true;
-  defender.card.facedUp = true;
+  attacker.card.reveal();
+  defender.card.reveal();
 
   if (attackerWins(attacker.card, defender.card)) {
     if (resolveUpgradeStack(board, defender, attacker)) {

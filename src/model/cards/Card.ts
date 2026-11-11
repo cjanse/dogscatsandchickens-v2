@@ -1,11 +1,12 @@
 import type { CardType } from "../types/CardType";
+import type { CardView } from "../game/views";
 
-export abstract class Card {
+export abstract class Card implements CardView {
   readonly id: string;
   readonly name: string;
   readonly type: CardType;
   readonly instanceId: string
-  facedUp: boolean = false;
+  private _facedUp: boolean = false;
 
   constructor(id: string, name: string, type: CardType, instanceId?: string) {
     this.id = id;
@@ -14,8 +15,21 @@ export abstract class Card {
     this.instanceId = instanceId ?? crypto.randomUUID();
   }
 
+  /** True while the card is permanently revealed on the field. It only changes through `reveal()` and `hide()`. */
+  get facedUp(): boolean {
+    return this._facedUp;
+  }
+
+  reveal(): void {
+    this._facedUp = true;
+  }
+
+  hide(): void {
+    this._facedUp = false;
+  }
+
   /** Clears any state that only makes sense while the card is on the field. Called whenever it leaves the field. */
   resetFieldState(): void {
-    this.facedUp = false;
+    this.hide();
   }
 }

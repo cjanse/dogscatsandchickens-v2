@@ -144,7 +144,7 @@ describe('GameBoard', () => {
         const alice = new Player(0, 1);
         const game = new GameBoard([alice, new Player(1)], new Deck([]));
         const dog = CardFactory.create(dogData) as CreatureCard;
-        dog.facedUp = true;
+        dog.reveal();
         alice.field[0][0] = dog;
 
         game.discardRow(alice, 0);
