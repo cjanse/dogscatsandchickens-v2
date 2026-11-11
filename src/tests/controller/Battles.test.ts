@@ -166,4 +166,27 @@ describe("matching abilities", () => {
     expect(opponentUpgrade.facedUp).toBe(true);
     expect(players[1].field.flat().filter(c => c !== null).every(c => c!.facedUp)).toBe(true);
   });
+
+  it("records a win only at End Turn, after an attack defeats the opponent's last creature", () => {
+    const { controller } = setupBattle("dog", "cat");
+
+    attack(controller);
+    expect(controller.getGameResult()).toEqual({ state: "ongoing" });
+
+    controller.endTurn();
+    expect(controller.getGameResult()).toEqual({ state: "win", winnerId: 0 });
+  });
+
+  it("does not record a win at End Turn while the opponent holds a creature in hand", () => {
+    const attacker = makeCreature("att_dog", "dog");
+    const { controller } = createTestController({
+      fields: [[attacker], [makeCreature("def_cat", "cat")]],
+      hands: [[], [makeCreature("spare", "chicken")]],
+    });
+
+    attack(controller);
+    controller.endTurn();
+
+    expect(controller.getGameResult()).toEqual({ state: "ongoing" });
+  });
 });

@@ -13,7 +13,7 @@ import type { CardView, GameView, PlayerView } from "../model/game/views";
 import { resolveBattle } from "../model/rules/Battle";
 import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
 import { setUpGame } from "../model/rules/Setup";
-import { lossResult, tieResult } from "../model/rules/GameEnd";
+import { lossResult, tieResult, winResult } from "../model/rules/GameEnd";
 import { HAND_LIMIT, isOverHandLimit } from "../model/rules/HandLimit";
 import { canPlaceCreature, canPlaceUpgrade } from "../model/rules/Placement";
 import {
@@ -854,6 +854,13 @@ export class GameController {
       const loss = lossResult(this.game.currentPlayer);
       if (loss.state !== "ongoing") {
         this.game.endGame(loss);
+        return { success: true };
+      }
+
+      // The loss comes first: ending your turn with no creatures loses even if your opponent has none too
+      const win = winResult(this.game, this.game.currentPlayer);
+      if (win.state !== "ongoing") {
+        this.game.endGame(win);
         return { success: true };
       }
 

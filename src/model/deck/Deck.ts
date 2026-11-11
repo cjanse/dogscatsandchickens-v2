@@ -20,8 +20,14 @@ export class Deck implements DeckView {
         return this.cards.pop();
     }
 
-    putCardBack(card: Card): void {
-        this.cards.unshift(card);
+    /** Removes and returns the card closest to the top that matches `predicate`, or undefined if none does. */
+    drawWhere(predicate: (card: Card) => boolean): Card | undefined {
+        for (let i = this.cards.length - 1; i >= 0; i--) {
+            if (predicate(this.cards[i])) {
+                return this.cards.splice(i, 1)[0];
+            }
+        }
+        return undefined;
     }
 
     get size() {
