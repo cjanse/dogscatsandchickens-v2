@@ -7,7 +7,7 @@ import type { GameView } from "./views";
 
 //Types
 export type TemporaryEffect =
-| { type: "revealHand"; sourcePlayerId: number; targetPlayerId: number;};
+| { type: "revealHand"; sourcePlayerId: number; targetPlayerId: number; /** The Messy Dorm card that started it, discarded when the reveal ends. */ cardInstanceId: string };
 
 /** A player's very first turn allows a single move. */
 export const FIRST_TURN_MOVES = 1;

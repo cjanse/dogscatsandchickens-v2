@@ -168,7 +168,7 @@ describe('GameBoard', () => {
 
     it('adds and removes temporary effects', () => {
         const game = new GameBoard([new Player(0), new Player(1)], new Deck([]));
-        const effect = { type: 'revealHand' as const, sourcePlayerId: 0, targetPlayerId: 1 };
+        const effect = { type: 'revealHand' as const, sourcePlayerId: 0, targetPlayerId: 1, cardInstanceId: 'dorm' };
 
         game.addTemporaryEffect(effect);
         expect(game.temporaryEffects).toEqual([effect]);

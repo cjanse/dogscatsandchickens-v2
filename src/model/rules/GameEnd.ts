@@ -1,8 +1,8 @@
-import type { Card } from "../cards/Card";
 import type { CreatureCard } from "../cards/CreatureCard";
 import type { GameView, PlayerView } from "../game/views";
 import type { CreatureType } from "../types/CreatureType";
 import type { GameResult } from "../types/GameResult";
+import { isPlayableCard } from "./Actions";
 
 /**
  * When the game is over. Each check returns the `GameResult` it finds, or `{ state: "ongoing" }`.
@@ -39,19 +39,13 @@ export function lossResult(player: PlayerView): GameResult {
 }
 
 /**
- * A tie: nobody can draw, the creatures left are all the same type, and no hand has a playable card.
- * `canPlay` says whether a player can play a card from their hand right now. It stays with the
- * controller for now, because it also depends on the turn state and the action-card conditions.
- * Note that the controller's version only accepts the current player, so in practice this looks at the
- * hand of the player about to move.
+ * A tie: nobody can draw, the creatures left are all the same type, and neither player has a card in
+ * hand that could still be played (see `isPlayableCard`). Both hands are checked, whoever's turn it is.
  */
-export function tieResult(
-  game: GameView,
-  canPlay: (player: PlayerView, card: Card) => boolean
-): GameResult {
+export function tieResult(game: GameView): GameResult {
   const noCardsToDraw = game.deck.size === 0;
   const noPlayableHands = game.players.every(
-    player => !player.hand.some(card => canPlay(player, card))
+    player => !player.hand.some(card => isPlayableCard(game, player, card))
   );
 
   return noCardsToDraw && allCreaturesSameType(game) && noPlayableHands

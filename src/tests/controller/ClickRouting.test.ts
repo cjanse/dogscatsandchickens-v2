@@ -231,6 +231,51 @@ describe("Power of Tea", () => {
     expect(controller.canClickField(players[1], 0, 0)).toBe(false);
     expect(players[1].field[0][0]?.facedUp).toBe(false);
   });
+
+  it("refuses a target that is already face up, and keeps the Tea card and the move", () => {
+    const tea = makeAction("Power_of_Tea_1", "powerOfTea");
+    const faceUp = makeCreature("face_up", "cat");
+    const faceDown = makeCreature("face_down", "cat");
+    const { controller, game, players } = createTestController({ hands: [[tea], []], fields: [[makeCreature()], [faceUp]] });
+    players[1].field.push([faceDown, null, null, null]);
+    faceUp.facedUp = true;
+
+    controller.clickHandCard(players[0], tea);
+    expect(controller.canClickField(players[1], 0, 0)).toBe(false);
+    expect(controller.clickField(players[1], 0, 0).success).toBe(false);
+
+    expect(players[0].hand).toEqual([tea]);
+    expect(game.discardPile).toEqual([]);
+    expect(controller.getMovesLeft()).toBe(2);
+    expect(controller.getPendingAction()).toBe("powerOfTea");
+
+    // The face-down card is still a valid target
+    expect(controller.clickField(players[1], 1, 0)).toEqual({ success: true });
+    expect(faceDown.facedUp).toBe(true);
+  });
+});
+
+describe("Spirits and the discard pile", () => {
+  it("only lets the selected Spirit pick a card of its own kind", () => {
+    const beach = makeAction("Beach_Spirits", "spirit");
+    const deadCreature = makeCreature("dead");
+    const deadUpgrade = makeUpgrade();
+    const { controller, game, players } = createTestController({ hands: [[beach], []] });
+    game.discard(deadCreature);
+    game.discard(deadUpgrade);
+
+    expect(controller.canInteractWithDiscardPileCard(deadUpgrade)).toBe(false);
+
+    controller.clickHandCard(players[0], beach);
+    expect(controller.getPendingAction()).toBe("upgradeRevive");
+    expect(controller.canInteractWithDiscardPileCard(deadCreature)).toBe(false);
+    expect(controller.canInteractWithDiscardPileCard(deadUpgrade)).toBe(true);
+
+    expect(controller.selectDiscardPileCard(deadUpgrade)).toEqual({ success: true });
+    expect(players[0].hand).toEqual([deadUpgrade]);
+    expect(game.discardPile).toEqual([deadCreature, beach]);
+    expect(controller.getMovesLeft()).toBe(1);
+  });
 });
 
 describe("Messy Dorm and the selection", () => {
@@ -261,6 +306,30 @@ describe("Messy Dorm and the selection", () => {
     expect(controller.getSelectedCard()).toBeNull();
     expect(game.discardPile).toEqual([dorm]);
     expect(controller.getMovesLeft()).toBe(1);
+  });
+
+  it("discards the Dorm that was played when the hand holds two", () => {
+    const otherDorm = makeAction("Messy_Dorm_1", "messyDorm");
+    const playedDorm = makeAction("Messy_Dorm_1", "messyDorm");
+    const { controller, game, players } = createTestController({ hands: [[otherDorm, playedDorm], []] });
+
+    controller.clickHandCard(players[0], playedDorm);
+    controller.clickHandCard(players[0], playedDorm);
+
+    expect(game.discardPile).toEqual([playedDorm]);
+    expect(players[0].hand).toEqual([otherDorm]);
+  });
+
+  it("shows the opponent's hand to the Dorm player while the reveal lasts", () => {
+    const dorm = makeAction("Messy_Dorm_1", "messyDorm");
+    const held = makeCreature("held");
+    const { controller, players } = createTestController({ hands: [[dorm], [held]] });
+
+    expect(controller.isCardVisibleToPlayer(held, players[1])).toBe(false);
+    controller.clickHandCard(players[0], dorm);
+    expect(controller.isCardVisibleToPlayer(held, players[1])).toBe(true);
+    controller.clickHandCard(players[0], dorm);
+    expect(controller.isCardVisibleToPlayer(held, players[1])).toBe(false);
   });
 });
 

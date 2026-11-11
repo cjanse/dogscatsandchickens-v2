@@ -23,7 +23,7 @@ describe("getGameState() is read-only", () => {
       // @ts-expect-error field rows are readonly
       () => { game.players[0].field[0][0] = null; },
       // @ts-expect-error temporaryEffects is readonly
-      () => game.temporaryEffects.push({ type: "revealHand", sourcePlayerId: 0, targetPlayerId: 1 }),
+      () => game.temporaryEffects.push({ type: "revealHand", sourcePlayerId: 0, targetPlayerId: 1, cardInstanceId: "dorm" }),
     ];
 
     expect(attempts).toHaveLength(5);
