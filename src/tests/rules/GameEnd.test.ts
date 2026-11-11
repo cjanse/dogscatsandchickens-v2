@@ -4,6 +4,7 @@ import {
   lossResult,
   playerHasCreatures,
   tieResult,
+  winResult,
 } from "../../model/rules/GameEnd";
 import type { CreatureCard } from "../../model/cards/CreatureCard";
 import { createTestController, makeAction, makeCreature } from "../controller/helpers";
@@ -41,6 +42,34 @@ describe("lossResult", () => {
     const { players } = createTestController({ fields: [[], [makeCreature()]] });
     expect(lossResult(players[0])).toEqual({ state: "loss", loserId: 0 });
     expect(lossResult(players[1])).toEqual({ state: "ongoing" });
+  });
+});
+
+describe("winResult", () => {
+  it("is a win when the opponent has no creatures on the field or in hand", () => {
+    const { game, players } = createTestController({
+      fields: [[makeCreature()], []],
+      hands: [[], [makeAction("birds", "birdArmy")]],
+    });
+    expect(winResult(game, players[0])).toEqual({ state: "win", winnerId: 0 });
+  });
+
+  it("is ongoing while the opponent still has a creature in hand", () => {
+    const { game, players } = createTestController({
+      fields: [[makeCreature()], []],
+      hands: [[], [makeCreature("in_hand")]],
+    });
+    expect(winResult(game, players[0])).toEqual({ state: "ongoing" });
+  });
+
+  it("is ongoing while the opponent still has a creature on the field", () => {
+    const { game, players } = createTestController({ fields: [[makeCreature()], [makeCreature("cat", "cat")]] });
+    expect(winResult(game, players[0])).toEqual({ state: "ongoing" });
+  });
+
+  it("names the player who is checked as the winner", () => {
+    const { game, players } = createTestController({ fields: [[], [makeCreature("cat", "cat")]] });
+    expect(winResult(game, players[1])).toEqual({ state: "win", winnerId: 1 });
   });
 });
 

@@ -104,6 +104,35 @@ describe("GameController", () => {
       // Turn does not advance once the game is over
       expect(game.currentPlayerIndex).toBe(0);
     });
+
+    it("ends the game as a win when the opponent has no creatures on the field or in hand", () => {
+      const { controller, game } = createTestController({ fields: [[makeCreature()], []] });
+
+      controller.endTurn();
+
+      expect(controller.getGameResult()).toEqual({ state: "win", winnerId: 0 });
+      expect(game.currentPlayerIndex).toBe(0);
+    });
+
+    it("does not end the game while the opponent still has a creature in hand", () => {
+      const { controller, game } = createTestController({
+        fields: [[makeCreature()], []],
+        hands: [[], [makeCreature("in_hand")]],
+      });
+
+      controller.endTurn();
+
+      expect(controller.getGameResult()).toEqual({ state: "ongoing" });
+      expect(game.currentPlayerIndex).toBe(1);
+    });
+
+    it("counts a loss, not a win, when neither player has creatures on the field", () => {
+      const { controller } = createTestController({ fields: [[], []] });
+
+      controller.endTurn();
+
+      expect(controller.getGameResult()).toEqual({ state: "loss", loserId: 0 });
+    });
   });
 
   describe("move counting", () => {

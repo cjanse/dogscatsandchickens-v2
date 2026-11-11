@@ -16,6 +16,11 @@ export function playerHasCreatures(player: PlayerView): boolean {
   return player.field.some(row => row.some(card => card?.type === "creature"));
 }
 
+/** True if the player has at least one creature card in their hand. */
+export function playerHasCreatureInHand(player: PlayerView): boolean {
+  return player.hand.some(card => card.type === "creature");
+}
+
 /** True if the creatures on both fields all share one creature type (or there are none). */
 export function allCreaturesSameType(game: GameView): boolean {
   const creatureTypes = new Set<CreatureType>();
@@ -36,6 +41,20 @@ export function allCreaturesSameType(game: GameView): boolean {
 /** A player with no creatures on the field loses. */
 export function lossResult(player: PlayerView): GameResult {
   return playerHasCreatures(player) ? ONGOING : { state: "loss", loserId: player.id };
+}
+
+/**
+ * A win for `player`: the opponent has no creatures on their field and none in their hand. The
+ * controller checks the loss first, so a player who ends their turn with an empty field loses even
+ * if the opponent has no creatures either.
+ */
+export function winResult(game: GameView, player: PlayerView): GameResult {
+  const opponent = game.players.find(other => other.id !== player.id);
+  if (!opponent) return ONGOING;
+
+  return playerHasCreatures(opponent) || playerHasCreatureInHand(opponent)
+    ? ONGOING
+    : { state: "win", winnerId: player.id };
 }
 
 /**

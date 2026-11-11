@@ -147,13 +147,13 @@ Follow-ups from the M1–M9 review:
 - [x] **Turn rules split between the model and the controller:** the one-move first turn was in the model, but "only a creature on the first turn", "no draw on the first turn", the recovery-turn draw and "an attack must be the first move (unless a matched Cat attacks again)" were in the controller. (`rules/Turn.ts`: `isFirstTurn`, `firstTurnAllows`, `canDraw`, `canStartAttack`. The controller's `canDrawCard`, `canPlayHandCard` and `canAttackWith` add only the game-over and draw-first checks.)
 
 ### 3. Missing rules
-- [ ] **Win condition:** the opponent has no creatures on the field or in their hand. A `win` result is never set yet, and the end screen only shows a loss.
+- [x] **Win condition:** the opponent has no creatures on the field or in their hand. (`winResult` in `rules/GameEnd.ts`, checked in `endTurn` after the loss check, so a player who ends their turn with no creatures loses even if the opponent has none either.)
 - [ ] **Matched Chicken:** while the pair is face up, the opponent's newly played creatures and upgrades must go down face up. Only the one-time reveal exists.
 - [ ] **Power of Tea:** revealing one card of a matched pair should flip both, and revealing a matched Chicken should trigger its ability.
 - [ ] **Matching:** a pair should stay face down until the player chooses to activate it, which costs no move. Right now it reveals and activates as soon as it is made. Activation is automatic only if the bottom creature was already face up.
 - [ ] **Matched Cat:** only the same Cat should be allowed to keep attacking. Right now any matched Cat can.
 - [x] **First turn:** only a creature may be played.
-- [ ] **Setup:** deal 3 random creatures and then 2 more cards. Right now the controller redraws whole 5-card hands until one has at least 3 creatures.
+- [x] **Setup:** deal 3 random creatures and then 2 more cards. (`setUpGame` in `rules/Setup.ts`, using `Deck.drawWhere`.)
 - [x] **Draw first:** the player must draw before making any move.
 
 ### 4. Features not built yet

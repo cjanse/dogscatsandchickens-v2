@@ -63,4 +63,25 @@ describe('Deck', () => {
         deck.draw();
         expect(deck.peek()).toBeUndefined();
     });
+
+    it('drawWhere removes the top-most matching card and leaves the rest in order', () => {
+        const dog: CardData = {
+            id: 'dog', name: 'Dog', type: 'creature', creatureType: 'dog', matchingAbilityType: 'alwaysWin'
+        };
+        const action: CardData = { id: 'dorm', name: 'Dorm', type: 'action', actionType: 'messyDorm' };
+        const [dogA, dorm, dogB, dormB] = [dog, action, dog, action].map(data => CardFactory.create(data));
+        const deck = new Deck([dogA, dorm, dogB, dormB]); // dormB is on top
+
+        expect(deck.drawWhere(card => card.type === 'creature')).toBe(dogB);
+        expect(deck.size).toBe(3);
+        expect(deck.draw()).toBe(dormB);
+        expect(deck.draw()).toBe(dorm);
+        expect(deck.draw()).toBe(dogA);
+    });
+
+    it('drawWhere returns undefined and changes nothing when no card matches', () => {
+        const deck = new Deck([CardFactory.create({ id: 'dorm', name: 'Dorm', type: 'action', actionType: 'messyDorm' })]);
+        expect(deck.drawWhere(card => card.type === 'creature')).toBeUndefined();
+        expect(deck.size).toBe(1);
+    });
 });

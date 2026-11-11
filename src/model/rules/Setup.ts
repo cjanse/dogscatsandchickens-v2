@@ -1,51 +1,40 @@
-import type { Card } from "../cards/Card";
 import type { Deck } from "../deck/Deck";
 import type { GameBoard } from "../game/GameBoard";
 import type { Player } from "../game/Player";
 
-const CARDS_PER_PLAYER = 5;
-const MIN_CREATURE_CARDS = 3;
+const STARTING_CREATURES = 3;
+const STARTING_EXTRA_CARDS = 2;
 
-/**
- * Deals a player's opening hand: 5 cards with at least 3 creatures. A hand without enough creatures
- * goes back into the deck, which is reshuffled before the next try. Stops early if the deck runs out.
- */
-export function dealStartingHand(deck: Deck, player: Player): void {
-  let hand: Card[] = [];
-  let creatureCount = 0;
-
-  while (hand.length < CARDS_PER_PLAYER) {
-    const card = deck.draw();
-    if (!card) break; // No more cards in deck
-
-    hand.push(card);
-
-    if (card.type === "creature") {
-      creatureCount++;
-    }
-
-    if (hand.length === CARDS_PER_PLAYER) {
-      if (creatureCount >= MIN_CREATURE_CARDS) break;
-
-      // Not enough creatures: put the cards back and try again
-      for (let i = hand.length - 1; i >= 0; i--) {
-        deck.putCardBack(hand[i]);
-      }
-      hand = [];
-      creatureCount = 0;
-      deck.shuffle();
-    }
-  }
-
-  for (const card of hand) {
+/** Deals a player 3 creature cards from the deck (fewer if the deck has fewer creatures). */
+export function dealStartingCreatures(deck: Deck, player: Player): void {
+  for (let i = 0; i < STARTING_CREATURES; i++) {
+    const card = deck.drawWhere(candidate => candidate.type === "creature");
+    if (!card) break;
     player.addToHand(card);
   }
 }
 
-/** Shuffles the deck and deals every player their opening hand. */
+/** Deals a player 2 more cards from the top of the deck (fewer if the deck runs out). */
+export function dealStartingExtraCards(deck: Deck, player: Player): void {
+  for (let i = 0; i < STARTING_EXTRA_CARDS; i++) {
+    const card = deck.draw();
+    if (!card) break;
+    player.addToHand(card);
+  }
+}
+
+/**
+ * The opening deal, as in GAME_RULES_V1.md: shuffle, each player takes 3 creatures at random, shuffle
+ * again, and each player draws 2 more cards. Every player ends up with a 5-card hand.
+ */
 export function setUpGame(game: GameBoard): void {
   game.deck.shuffle();
   for (const player of game.players) {
-    dealStartingHand(game.deck, player);
+    dealStartingCreatures(game.deck, player);
+  }
+
+  game.deck.shuffle();
+  for (const player of game.players) {
+    dealStartingExtraCards(game.deck, player);
   }
 }
