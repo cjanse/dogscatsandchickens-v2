@@ -2,6 +2,11 @@ import type { Card } from "../cards/Card";
 import type { CreatureCard } from "../cards/CreatureCard";
 import type { PlayerView } from "./views";
 
+/** What `Player.playToField` did: it either placed the card (maybe making a matched pair) or changed nothing. */
+export type PlaceResult =
+    | { placed: false }
+    | { placed: true; match: { card: CreatureCard; twin: CreatureCard } | null };
+
 export class Player implements PlayerView {
     readonly id: number;
     hand: Card[];
@@ -62,33 +67,43 @@ export class Player implements PlayerView {
     /**
      * Plays a hand card into a field slot. `row === -1` opens a new row above all rows and
      * `row === field.length` opens one below; any other row must already exist.
+     * Reports whether the card was placed. Nothing changes (no new row either) when it wasn't.
+     * A creature placed next to its twin (same card id) makes a matched pair, which is returned for the caller.
      */
-    playToField(instanceId: string, row: number, col: number) {
-        const index = this.hand.findIndex(obj => obj.instanceId === instanceId)
-        if (index === -1) return null;
-        const playCard = this.hand[index];
+    playToField(instanceId: string, row: number, col: number): PlaceResult {
+        const playCard = this.hand.find(obj => obj.instanceId === instanceId);
+        if (!playCard) return { placed: false };
         const width = this.field[0]?.length ?? this.fieldCols;
-        if (row === -1 && this.field.length > 0) {
+        if (col < 0 || col >= width) return { placed: false };
+
+        const opensAbove = row === -1 && this.field.length > 0;
+        const opensBelow = row === this.field.length;
+        if (!opensAbove && !opensBelow && !this.field[row]) return { placed: false };
+        if (!opensAbove && !opensBelow && this.field[row][col]) return { placed: false };
+
+        if (opensAbove) {
             this.field.unshift(new Array(width).fill(null));
             row = 0;
-        } else if (row === this.field.length) {
+        } else if (opensBelow) {
             this.field.push(new Array(width).fill(null));
         }
-        if (!this.field[row]) return null;
-        if (!this.field[row][col]) {
-            this.field[row][col] = playCard;
-            this.hand = this.hand.filter(c => c !== playCard);
-            const otherColIndex = (col+1)%2
-            if (this.field[row][otherColIndex] != null && (this.field[row][otherColIndex] as Card).id === playCard.id) { //Updates matched status if IDs are same
-                const otherCard = this.field[row][otherColIndex] as CreatureCard;
-                otherCard.facedUp = true;
-                otherCard.matched = true;
-                playCard.facedUp = true;
-                (playCard as CreatureCard).matched = true
-                // Return matched cards for controller to handle matched abilities
-                return { matchedCard: playCard as CreatureCard, otherMatchedCard: otherCard };
-            }
+        this.field[row][col] = playCard;
+        this.hand = this.hand.filter(c => c !== playCard);
+
+        // Only a creature in a creature column (0 or 1) can match a twin
+        if (playCard.type !== "creature" || (col !== 0 && col !== 1)) {
+            return { placed: true, match: null };
         }
-        return null;
+        const twin = this.field[row][col === 0 ? 1 : 0];
+        if (twin && twin.id === playCard.id) {
+            const card = playCard as CreatureCard;
+            const twinCard = twin as CreatureCard;
+            twinCard.facedUp = true;
+            twinCard.matched = true;
+            card.facedUp = true;
+            card.matched = true;
+            return { placed: true, match: { card, twin: twinCard } };
+        }
+        return { placed: true, match: null };
     }
 }

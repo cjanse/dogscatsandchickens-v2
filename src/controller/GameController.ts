@@ -409,9 +409,10 @@ export class GameController {
     row: number,
     col: number
   ): PlayResult {
-    const matchedResult = player.playToField(card.instanceId, row, col);
-    if (matchedResult) {
-      activateMatchedAbility(this.game, player, matchedResult.matchedCard);
+    const placed = player.playToField(card.instanceId, row, col);
+    if (!placed.placed) return { success: false, reason: "Invalid card placement" };
+    if (placed.match) {
+      activateMatchedAbility(this.game, player, placed.match.card);
     }
     return { success: true };
   }
@@ -422,8 +423,8 @@ export class GameController {
     row: number,
     col: number
   ): PlayResult {
-    player.playToField(card.instanceId, row, col);
-    return { success: true };
+    const placed = player.playToField(card.instanceId, row, col);
+    return placed.placed ? { success: true } : { success: false, reason: "Invalid card placement" };
   }
 
   /** Power of Tea: reveals the clicked card on the opponent's field and discards the Tea card. */
