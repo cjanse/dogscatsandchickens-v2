@@ -1,6 +1,7 @@
 import type { CardType } from "../types/CardType";
+import type { CardView } from "../game/views";
 
-export abstract class Card {
+export abstract class Card implements CardView {
   readonly id: string;
   readonly name: string;
   readonly type: CardType;

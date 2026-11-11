@@ -38,7 +38,7 @@ describe("clicking the field", () => {
     const twin = makeCreature(); // matches the Dog at row 0, col 0
     const { controller, players } = createTestController({ hands: [[twin], []] });
 
-    expect(controller.clickHandCard(players[0], twin)).toEqual({ success: true });
+    expect(controller.clickHandCard(twin)).toEqual({ success: true });
     expect(controller.getSelectedCard()).toBe(twin);
 
     // Not on the opponent's field, and not on top of your own creature. Holding a card is not an attack.
@@ -84,7 +84,7 @@ describe("clicking the field", () => {
     controller.clickField(players[0], 0, 0);
     expect(controller.getPendingAction()).toBe("attack");
 
-    expect(controller.clickHandCard(players[0], creature).success).toBe(true);
+    expect(controller.clickHandCard(creature).success).toBe(true);
     expect(controller.getPendingAction()).toBeNull();
     expect(game.turn.attackingCard).toBeNull();
 
@@ -126,7 +126,7 @@ describe("clicking the field", () => {
 
     expect(controller.canClickField(players[0], 0, 0)).toBe(false);
 
-    controller.drawCard(players[0]);
+    controller.drawCard();
 
     expect(controller.canClickField(players[0], 0, 0)).toBe(true);
   });
@@ -144,23 +144,23 @@ describe("selecting hand cards", () => {
   it("selects a card, deselects it on a second click, and swaps the selection when another is clicked", () => {
     const first = makeCreature("first");
     const second = makeCreature("second");
-    const { controller, players } = createTestController({ hands: [[first, second], []] });
+    const { controller } = createTestController({ hands: [[first, second], []] });
 
-    controller.clickHandCard(players[0], first);
+    controller.clickHandCard(first);
     expect(controller.getSelectedCard()).toBe(first);
 
-    controller.clickHandCard(players[0], second);
+    controller.clickHandCard(second);
     expect(controller.getSelectedCard()).toBe(second);
 
-    controller.clickHandCard(players[0], second);
+    controller.clickHandCard(second);
     expect(controller.getSelectedCard()).toBeNull();
   });
 
   it("clears the selection when the turn ends", () => {
     const creature = makeCreature("held");
-    const { controller, players } = createTestController({ hands: [[creature], []] });
+    const { controller } = createTestController({ hands: [[creature], []] });
 
-    controller.clickHandCard(players[0], creature);
+    controller.clickHandCard(creature);
     controller.endTurn();
 
     expect(controller.getSelectedCard()).toBeNull();
@@ -168,12 +168,12 @@ describe("selecting hand cards", () => {
 
   it("does not select a card the player can't play", () => {
     const upgrade = makeUpgrade();
-    const { controller, players } = createTestController({
+    const { controller } = createTestController({
       hands: [[upgrade], []],
       turnCounts: [0, 0], // only a creature may be played on a first turn
     });
 
-    expect(controller.clickHandCard(players[0], upgrade).success).toBe(false);
+    expect(controller.clickHandCard(upgrade).success).toBe(false);
     expect(controller.getSelectedCard()).toBeNull();
   });
 
@@ -182,7 +182,7 @@ describe("selecting hand cards", () => {
     const { controller, game, players } = createTestController({ hands: [cards, []] });
 
     expect(controller.startDiscardPhase().success).toBe(true);
-    expect(controller.clickHandCard(players[0], cards[0]).success).toBe(true);
+    expect(controller.clickHandCard(cards[0]).success).toBe(true);
 
     expect(game.discardPile).toEqual([cards[0]]);
     expect(players[0].hand).toHaveLength(5);
@@ -207,7 +207,7 @@ describe("Power of Tea", () => {
     const target = players[1].field[0][0] as Card;
     expect(target.facedUp).toBe(false);
 
-    expect(controller.clickHandCard(players[0], tea).success).toBe(true);
+    expect(controller.clickHandCard(tea).success).toBe(true);
     expect(controller.getPendingAction()).toBe("powerOfTea");
 
     // Only the opponent's field is a valid target, and a click there is not an attack
@@ -240,7 +240,7 @@ describe("Power of Tea", () => {
     players[1].field.push([faceDown, null, null, null]);
     faceUp.reveal();
 
-    controller.clickHandCard(players[0], tea);
+    controller.clickHandCard(tea);
     expect(controller.canClickField(players[1], 0, 0)).toBe(false);
     expect(controller.clickField(players[1], 0, 0).success).toBe(false);
 
@@ -266,7 +266,7 @@ describe("Spirits and the discard pile", () => {
 
     expect(controller.canInteractWithDiscardPileCard(deadUpgrade)).toBe(false);
 
-    controller.clickHandCard(players[0], beach);
+    controller.clickHandCard(beach);
     expect(controller.getPendingAction()).toBe("upgradeRevive");
     expect(controller.canInteractWithDiscardPileCard(deadCreature)).toBe(false);
     expect(controller.canInteractWithDiscardPileCard(deadUpgrade)).toBe(true);
@@ -282,13 +282,13 @@ describe("Messy Dorm and the selection", () => {
   it("discards the Dorm and charges one move when another card is selected", () => {
     const dorm = makeAction("Messy_Dorm_1", "messyDorm");
     const creature = makeCreature("held");
-    const { controller, game, players } = createTestController({ hands: [[dorm, creature], []] });
+    const { controller, game } = createTestController({ hands: [[dorm, creature], []] });
 
-    controller.clickHandCard(players[0], dorm);
+    controller.clickHandCard(dorm);
     expect(controller.getSelectedCard()).toBe(dorm);
     expect(game.temporaryEffects).toHaveLength(1);
 
-    controller.clickHandCard(players[0], creature);
+    controller.clickHandCard(creature);
 
     expect(controller.getSelectedCard()).toBe(creature);
     expect(game.temporaryEffects).toHaveLength(0);
@@ -298,10 +298,10 @@ describe("Messy Dorm and the selection", () => {
 
   it("discards the Dorm and charges one move when it is deselected", () => {
     const dorm = makeAction("Messy_Dorm_1", "messyDorm");
-    const { controller, game, players } = createTestController({ hands: [[dorm], []] });
+    const { controller, game } = createTestController({ hands: [[dorm], []] });
 
-    controller.clickHandCard(players[0], dorm);
-    controller.clickHandCard(players[0], dorm);
+    controller.clickHandCard(dorm);
+    controller.clickHandCard(dorm);
 
     expect(controller.getSelectedCard()).toBeNull();
     expect(game.discardPile).toEqual([dorm]);
@@ -313,8 +313,8 @@ describe("Messy Dorm and the selection", () => {
     const playedDorm = makeAction("Messy_Dorm_1", "messyDorm");
     const { controller, game, players } = createTestController({ hands: [[otherDorm, playedDorm], []] });
 
-    controller.clickHandCard(players[0], playedDorm);
-    controller.clickHandCard(players[0], playedDorm);
+    controller.clickHandCard(playedDorm);
+    controller.clickHandCard(playedDorm);
 
     expect(game.discardPile).toEqual([playedDorm]);
     expect(players[0].hand).toEqual([otherDorm]);
@@ -326,9 +326,9 @@ describe("Messy Dorm and the selection", () => {
     const { controller, players } = createTestController({ hands: [[dorm], [held]] });
 
     expect(controller.isCardVisibleToPlayer(held, players[1])).toBe(false);
-    controller.clickHandCard(players[0], dorm);
+    controller.clickHandCard(dorm);
     expect(controller.isCardVisibleToPlayer(held, players[1])).toBe(true);
-    controller.clickHandCard(players[0], dorm);
+    controller.clickHandCard(dorm);
     expect(controller.isCardVisibleToPlayer(held, players[1])).toBe(false);
   });
 });
@@ -342,7 +342,7 @@ describe("the card behind a pending action", () => {
       hands: [[bystander, birdArmy], [stealable]],
     });
 
-    controller.clickHandCard(players[0], birdArmy);
+    controller.clickHandCard(birdArmy);
     expect(controller.interactWithOpponentCard(players[1], stealable).success).toBe(true);
 
     expect(game.discardPile).toEqual([birdArmy]);
@@ -358,7 +358,7 @@ describe("the card behind a pending action", () => {
     const { controller, game, players } = createTestController({ hands: [[bystander, spirits], []] });
     game.discard(discarded);
 
-    controller.clickHandCard(players[0], spirits);
+    controller.clickHandCard(spirits);
     expect(controller.selectDiscardPileCard(discarded).success).toBe(true);
 
     expect(game.discardPile).toEqual([spirits]);
@@ -374,7 +374,7 @@ describe("the card behind a pending action", () => {
       hands: [[birdArmy], [makeCreature("opp_card")]],
     });
 
-    controller.clickHandCard(players[0], birdArmy);
+    controller.clickHandCard(birdArmy);
     const result = controller.interactWithOpponentCard(players[1], elsewhere);
 
     expect(result.success).toBe(false);
@@ -398,24 +398,15 @@ describe("drawing returns a result", () => {
       deck: [makeCreature("deck_1"), makeCreature("deck_2")],
     });
 
-    expect(controller.drawCard(players[0])).toEqual({ success: true });
-    expect(controller.drawCard(players[0]).success).toBe(false);
+    expect(controller.drawCard()).toEqual({ success: true });
+    expect(controller.drawCard().success).toBe(false);
     expect(players[0].hand).toHaveLength(1);
   });
 
-  it("refuses a draw for the player who is not up", () => {
-    const { controller, game, players } = createTestController({ deck: [makeCreature("deck_1")] });
-
-    expect(controller.canDrawCard(players[1])).toBe(false);
-    expect(controller.drawCard(players[1]).success).toBe(false);
-    expect(players[1].hand).toEqual([]);
-    expect(game.deck.size).toBe(1);
-  });
-
   it("refuses a draw from an empty deck", () => {
-    const { controller, players } = createTestController();
+    const { controller } = createTestController();
 
-    expect(controller.drawCard(players[0]).success).toBe(false);
+    expect(controller.drawCard().success).toBe(false);
   });
 });
 
@@ -439,7 +430,7 @@ describe("finishTurn and the AI", () => {
 
   it("plays the AI's turn after the delay and hands play back to the human", () => {
     const { controller, game, players } = setupAgainstAI();
-    controller.drawCard(players[0]);
+    controller.drawCard();
 
     expect(controller.finishTurn().success).toBe(true);
 
@@ -455,8 +446,8 @@ describe("finishTurn and the AI", () => {
   });
 
   it("notifies subscribers when the turn ends and after the AI has played", () => {
-    const { controller, players } = setupAgainstAI();
-    controller.drawCard(players[0]);
+    const { controller } = setupAgainstAI();
+    controller.drawCard();
     const listener = vi.fn();
     controller.subscribe(listener);
 
@@ -475,7 +466,7 @@ describe("finishTurn and the AI", () => {
       fields: [[makeCreature()], [makeCreature("ai_dog")]],
       player2IsAI: true,
     });
-    controller.drawCard(players[0]);
+    controller.drawCard();
     controller.finishTurn();
     const listener = vi.fn();
     controller.subscribe(listener);
@@ -487,8 +478,8 @@ describe("finishTurn and the AI", () => {
   });
 
   it("stops notifying a subscriber that unsubscribed", () => {
-    const { controller, players } = setupAgainstAI();
-    controller.drawCard(players[0]);
+    const { controller } = setupAgainstAI();
+    controller.drawCard();
     const listener = vi.fn();
     const unsubscribe = controller.subscribe(listener);
     unsubscribe();
@@ -501,7 +492,7 @@ describe("finishTurn and the AI", () => {
 
   it("cancels a pending AI turn on dispose", () => {
     const { controller, game, players } = setupAgainstAI();
-    controller.drawCard(players[0]);
+    controller.drawCard();
     controller.finishTurn();
 
     controller.dispose();
@@ -513,7 +504,7 @@ describe("finishTurn and the AI", () => {
 
   it("won't let End Turn end the AI's turn while it is still thinking", () => {
     const { controller, game, players } = setupAgainstAI();
-    controller.drawCard(players[0]);
+    controller.drawCard();
     controller.finishTurn();
     expect(game.currentPlayerIndex).toBe(1);
 
@@ -570,10 +561,10 @@ describe("notifying views", () => {
   }
 
   it("notifies once and bumps the version after a human action", () => {
-    const { controller, players, listener } = subscribed({ deck: [makeCreature("deck_1")] });
+    const { controller, listener } = subscribed({ deck: [makeCreature("deck_1")] });
     const before = controller.getVersion();
 
-    expect(controller.drawCard(players[0]).success).toBe(true);
+    expect(controller.drawCard().success).toBe(true);
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(controller.getVersion()).toBe(before + 1);
@@ -581,9 +572,9 @@ describe("notifying views", () => {
 
   it("notifies once when selecting a hand card", () => {
     const card = makeCreature("hand_1");
-    const { controller, players, listener } = subscribed({ hands: [[card], []] });
+    const { controller, listener } = subscribed({ hands: [[card], []] });
 
-    controller.clickHandCard(players[0], card);
+    controller.clickHandCard(card);
 
     expect(listener).toHaveBeenCalledTimes(1);
   });
@@ -591,7 +582,7 @@ describe("notifying views", () => {
   it("notifies once for a click that calls other actions inside it", () => {
     const twin = makeCreature();
     const { controller, players, listener } = subscribed({ hands: [[twin], []] });
-    controller.clickHandCard(players[0], twin);
+    controller.clickHandCard(twin);
     listener.mockClear();
 
     // clickField → playCard: still a single notification
@@ -601,9 +592,9 @@ describe("notifying views", () => {
   });
 
   it("also notifies after a failed action", () => {
-    const { controller, players, listener } = subscribed();
+    const { controller, listener } = subscribed();
 
-    expect(controller.drawCard(players[0]).success).toBe(false);
+    expect(controller.drawCard().success).toBe(false);
 
     expect(listener).toHaveBeenCalledTimes(1);
   });
@@ -612,7 +603,7 @@ describe("notifying views", () => {
     const { controller, players, listener } = subscribed();
 
     controller.canClickField(players[0], 0, 0);
-    controller.canDrawCard(players[0]);
+    controller.canDrawCard();
     controller.isCardVisibleToPlayer(players[1].field[0][0]!, players[1]);
 
     expect(listener).not.toHaveBeenCalled();
@@ -652,7 +643,7 @@ describe("the viewer during the AI's turn", () => {
       player2IsAI: true,
     });
     test.game.discard(discarded);
-    test.controller.drawCard(test.players[0]);
+    test.controller.drawCard();
     expect(test.controller.finishTurn().success).toBe(true);
     expect(test.game.currentPlayerIndex).toBe(1);
     return { ...test, humanCard, aiCard, steal, discarded };
@@ -681,11 +672,11 @@ describe("the viewer during the AI's turn", () => {
     // The AI's creature could attack on a human's turn: it must not be clickable now
     expect(controller.canClickField(players[1], 0, 0)).toBe(false);
     expect(controller.clickField(players[1], 0, 0)).toEqual(refusal);
-    expect(controller.clickHandCard(players[0], humanCard)).toEqual(refusal);
-    expect(controller.clickHandCard(players[1], aiCard)).toEqual(refusal);
+    expect(controller.clickHandCard(humanCard)).toEqual(refusal);
+    expect(controller.clickHandCard(aiCard)).toEqual(refusal);
     expect(controller.interactWithOpponentCard(players[1], aiCard)).toEqual(refusal);
     expect(controller.selectDiscardPileCard(discarded)).toEqual(refusal);
-    expect(controller.drawCard(players[0]).success).toBe(false);
+    expect(controller.drawCard().success).toBe(false);
 
     expect(controller.getSelectedCard()).toBeNull();
     expect(controller.getPendingAction()).toBeNull();
@@ -722,7 +713,53 @@ describe("the viewer otherwise", () => {
     const { controller, players } = createTestController({ hands: [[dorm], [aiCard]], player2IsAI: true });
 
     expect(controller.isCardVisibleToPlayer(aiCard, players[1])).toBe(false);
-    expect(controller.clickHandCard(players[0], dorm).success).toBe(true);
+    expect(controller.clickHandCard(dorm).success).toBe(true);
     expect(controller.isCardVisibleToPlayer(aiCard, players[1])).toBe(true);
+  });
+});
+
+describe("clickDeck", () => {
+  it("draws for a human who owes a draw", () => {
+    const drawn = makeCreature("deck_1");
+    const { controller, players } = createTestController({ deck: [drawn] });
+
+    expect(controller.canClickDeck()).toBe(true);
+    expect(controller.clickDeck()).toEqual({ success: true });
+    expect(players[0].hand).toEqual([drawn]);
+    expect(controller.canClickDeck()).toBe(false);
+  });
+
+  it("refuses during the AI's turn and leaves the AI's hand and the deck alone", () => {
+    const { controller, game, players } = createTestController({
+      deck: [makeCreature("deck_1")],
+      currentPlayerIndex: 1,
+      player2IsAI: true,
+    });
+
+    expect(controller.canDrawCard()).toBe(true); // the AI itself may draw
+    expect(controller.canClickDeck()).toBe(false);
+    expect(controller.clickDeck()).toEqual({ success: false, reason: "Wait for the AI to finish its turn" });
+    expect(players[1].hand).toEqual([]);
+    expect(game.deck.size).toBe(1);
+  });
+});
+
+describe("cards handed back by a view", () => {
+  it("finds the real card by instanceId, so a copy of the same card works too", () => {
+    const creature = makeCreature("copy_me");
+    const { controller, players } = createTestController({ hands: [[creature], []] });
+    const sameCard = { id: creature.id, name: creature.name, type: creature.type, instanceId: creature.instanceId, facedUp: false };
+
+    expect(controller.clickHandCard(sameCard).success).toBe(true);
+    expect(controller.clickField(players[0], -1, 0).success).toBe(true);
+    expect(players[0].field[0][0]).toBe(creature);
+  });
+
+  it("refuses a card that is not in the hand", () => {
+    const { controller } = createTestController({ hands: [[makeCreature("in_hand")], []] });
+    const stranger = makeCreature("stranger");
+
+    expect(controller.clickHandCard(stranger).success).toBe(false);
+    expect(controller.getSelectedCard()).toBeNull();
   });
 });

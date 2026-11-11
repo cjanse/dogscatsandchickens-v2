@@ -95,7 +95,7 @@ export default function GamePageV1Diagnostics() {
         <p>Hand ({viewer.hand.length})</p>
         <ul>
           {viewer.hand.map((card) => {
-            const selected = queries.getSelectedCard() === card;
+            const selected = queries.getSelectedCard()?.instanceId === card.instanceId;
             return (
               <li
                 key={card.instanceId}
@@ -115,7 +115,7 @@ export default function GamePageV1Diagnostics() {
 
         <button
           onClick={controls.drawCard}
-          style={{ cursor: queries.canDrawCard(viewer) ? "pointer" : "not-allowed" }}
+          style={{ cursor: queries.canClickDeck() ? "pointer" : "not-allowed" }}
         >
           Draw Card
         </button>

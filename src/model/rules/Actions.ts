@@ -2,7 +2,7 @@ import type { Card } from "../cards/Card";
 import type { ActionCard } from "../cards/ActionCard";
 import type { GameBoard, TemporaryEffect } from "../game/GameBoard";
 import type { Player } from "../game/Player";
-import type { GameView, PlayerView } from "../game/views";
+import type { CardView, GameView, PlayerView } from "../game/views";
 import type { CardType } from "../types/CardType";
 import { hasUpgradeSlot } from "./Placement";
 
@@ -19,7 +19,7 @@ const SPIRIT_REVIVES: Record<string, CardType> = {
 };
 
 /** The kind of card a Spirit takes from the discard pile, or null for any other card. */
-export function reviveKind(card: Card): CardType | null {
+export function reviveKind(card: CardView): CardType | null {
   if (card.type !== "action" || (card as ActionCard).actionType !== "spirit") return null;
   return SPIRIT_REVIVES[card.id] ?? null;
 }
@@ -45,7 +45,7 @@ export function canPlayAction(game: GameView, player: PlayerView, card: ActionCa
  * Whether a card in `player`'s hand could be played at all, ignoring whose turn it is and the moves left:
  * a creature always can, an upgrade needs a free slot, an action needs something to act on.
  */
-export function isPlayableCard(game: GameView, player: PlayerView, card: Card): boolean {
+export function isPlayableCard(game: GameView, player: PlayerView, card: CardView): boolean {
   switch (card.type) {
     case "creature":
       return true;
@@ -59,7 +59,7 @@ export function isPlayableCard(game: GameView, player: PlayerView, card: Card): 
 // Spirits
 
 /** Whether the Spirit `card` can take `target` from the discard pile. */
-export function canRevive(card: Card, target: Card): boolean {
+export function canRevive(card: CardView, target: CardView): boolean {
   const kind = reviveKind(card);
   return kind !== null && target.type === kind;
 }

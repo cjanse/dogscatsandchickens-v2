@@ -1,5 +1,4 @@
-import type { Card } from "../cards/Card";
-import type { GameView, PlayerView } from "../game/views";
+import type { CardView, GameView, PlayerView } from "../game/views";
 
 /**
  * Whether `viewer` can see the front of `card`, which belongs to `owner` (in their hand or on their field).
@@ -7,7 +6,7 @@ import type { GameView, PlayerView } from "../game/views";
  * - A card that is face up on the field is visible to everyone.
  * - A Messy Dorm reveal shows the target's hand, only to the player who played it.
  */
-export function isCardVisible(game: GameView, card: Card, owner: PlayerView, viewer: PlayerView): boolean {
+export function isCardVisible(game: GameView, card: CardView, owner: PlayerView, viewer: PlayerView): boolean {
   if (owner.id === viewer.id) return true;
   if (card.facedUp) return true;
 

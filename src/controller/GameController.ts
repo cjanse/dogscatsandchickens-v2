@@ -2,14 +2,14 @@ import { GameBoard } from "../model/game/GameBoard";
 import { Player } from "../model/game/Player";
 import { DeckFactory } from "../model/deck/DeckFactory";
 import type { CardData } from "../model/types/CardData";
-import { Card } from "../model/cards/Card";
+import type { Card } from "../model/cards/Card";
 import type { ActionCard } from "../model/cards/ActionCard";
 import type { UpgradeCard } from "../model/cards/UpgradeCard";
 import type { CreatureCard } from "../model/cards/CreatureCard";
 import type { TurnType } from "../model/types/TurnType";
 import type { GameResult } from "../model/types/GameResult";
 import type { CardType } from "../model/types/CardType";
-import type { GameView, PlayerView } from "../model/game/views";
+import type { CardView, GameView, PlayerView } from "../model/game/views";
 import { resolveBattle } from "../model/rules/Battle";
 import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
 import { setUpGame } from "../model/rules/Setup";
@@ -104,6 +104,16 @@ export class GameController {
     return this.game;
   }
 
+  /** Finds the real card in `player`'s hand behind a read-only view the UI is holding. */
+  private handCard(player: Player, view: CardView): Card | undefined {
+    return player.hand.find(c => c.instanceId === view.instanceId);
+  }
+
+  /** Finds the real card in the discard pile behind a read-only view. */
+  private discardCard(view: CardView): Card | undefined {
+    return this.game.discardPile.find(c => c.instanceId === view.instanceId);
+  }
+
   /** Finds the real Player behind a read-only view the UI is holding. */
   private modelPlayer(view: PlayerView): Player {
     const player = this.game.players.find(p => p.id === view.id);
@@ -119,7 +129,7 @@ export class GameController {
    * The card the UI should highlight: the attacker while an attack is pending, otherwise the
    * hand card the player has picked up.
    */
-  getSelectedCard(): Card | null {
+  getSelectedCard(): CardView | null {
     if (this.pendingAction === "attack") {
       return this.game.turn.attackingCard?.card ?? null;
     }
@@ -215,7 +225,7 @@ export class GameController {
     });
   }
 
-  discardHandCard(card: Card): PlayResult {
+  discardHandCard(card: CardView): PlayResult {
     return this.withNotify(() => {
       if (this.pendingAction !== "discardExtraCards") {
         return { success: false, reason: "Not in discard phase" };
@@ -238,12 +248,13 @@ export class GameController {
   }
 
   /** Player actions */
-  drawCard(playerView: PlayerView): PlayResult {
+  /** Draws for the current player. The AI calls this directly; humans go through `clickDeck`. */
+  drawCard(): PlayResult {
     return this.withNotify(() => {
-      if (!this.canDrawCard(playerView)) {
+      if (!this.canDrawCard()) {
         return { success: false, reason: "You can't draw a card right now" };
       }
-      const player = this.modelPlayer(playerView);
+      const player = this.game.currentPlayer;
       const card = this.game.deck.draw();
       if (!card) return { success: false, reason: "The deck is empty" };
 
@@ -257,11 +268,10 @@ export class GameController {
    * A draw costs no move. It isn't available on a first turn, with an empty deck,
    * or (during a recovery turn) until the player has a creature on the field.
    */
-  canDrawCard(playerView: PlayerView): boolean {
+  canDrawCard(): boolean {
     if (this.isGameOver()) return false;
-    const player = this.modelPlayer(playerView);
+    const player = this.game.currentPlayer;
     return !this.game.turn.hasDrawn &&
-      player === this.game.currentPlayer &&
       this.game.deck.size > 0 &&
       player.turnCount !== 0 &&
       playerHasCreatures(player);
@@ -273,7 +283,20 @@ export class GameController {
 
   /** True while the current player owes a draw. No move or end of turn is allowed until they draw. */
   mustDrawFirst(): boolean {
-    return this.canDrawCard(this.game.currentPlayer);
+    return this.canDrawCard();
+  }
+
+  /** Whether clicking the deck draws a card: the current player owes a draw and is a human (the AI draws for itself). */
+  canClickDeck(): boolean {
+    return this.isHumanTurn() && this.canDrawCard();
+  }
+
+  /** The deck pile's click. Refuses during the AI's turn, since `drawCard` itself always acts for the current player. */
+  clickDeck(): PlayResult {
+    return this.withNotify(() => {
+      if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
+      return this.drawCard();
+    });
   }
 
   canEndTurn(): boolean {
@@ -296,9 +319,10 @@ export class GameController {
    * Places a creature or upgrade from the current player's hand. `player` owns the field being
    * placed on. Action cards are resolved through `selectHandCard`, `clickField` and friends.
    */
-  playCard(playerView: PlayerView, card: Card, row: number, col: number): PlayResult {
+  playCard(playerView: PlayerView, cardView: CardView, row: number, col: number): PlayResult {
     return this.withNotify(() => {
-      if (!this.canPlayCard(playerView, card, row, col)) {
+      const card = this.handCard(this.game.currentPlayer, cardView);
+      if (!card || !this.canPlayCard(playerView, card, row, col)) {
         return { success: false, reason: "Invalid card placement" };
       }
 
@@ -324,7 +348,7 @@ export class GameController {
 
       if (result.success) {
         this.game.turn.useMove();
-        if (this.selectedCard === card) this.selectedCard = null;
+        if (this.selectedCard?.instanceId === card.instanceId) this.selectedCard = null;
       }
 
       return result;
@@ -443,13 +467,13 @@ export class GameController {
 
   // Begin can Play Card Validation Suite
   /** Reinforce only: can this creature or upgrade go on `player`'s field at (row, col)? */
-  canPlayCard(playerView: PlayerView, card: Card, row: number, col: number): boolean {
+  canPlayCard(playerView: PlayerView, card: CardView, row: number, col: number): boolean {
     if (this.isGameOver()) return false;
     const player = this.modelPlayer(playerView);
     const current = this.game.currentPlayer;
 
     // The card must come from the current player's hand
-    if (!current.hand.includes(card)) return false;
+    if (!this.handCard(current, card)) return false;
     // Moves left, draw-first and first-turn rules
     if (!this.canPlayHandCard(current, card)) return false;
 
@@ -561,17 +585,17 @@ export class GameController {
    * One entry point for a click on a card in the current player's hand: discards it during the
    * discard phase, deselects it if it is already selected, and otherwise selects it.
    */
-  clickHandCard(playerView: PlayerView, card: Card): PlayResult {
+  clickHandCard(card: CardView): PlayResult {
     return this.withNotify(() => {
       if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       if (this.pendingAction === "discardExtraCards") {
         return this.discardHandCard(card);
       }
-      if (this.selectedCard === card) {
+      if (this.selectedCard?.instanceId === card.instanceId) {
         this.deselectCard();
         return { success: true };
       }
-      return this.selectHandCard(playerView, card);
+      return this.selectHandCard(card);
     });
   }
 
@@ -587,10 +611,11 @@ export class GameController {
    * Picks up a card from the player's hand. A creature or upgrade is then placed with `clickField`.
    * An action card starts its pending action and is discarded by the controller when it resolves.
    */
-  selectHandCard(playerView: PlayerView, card: Card): PlayResult {
+  selectHandCard(cardView: CardView): PlayResult {
     return this.withNotify(() => {
-      const player = this.modelPlayer(playerView);
-      if (!this.canPlayHandCard(player, card)) {
+      const player = this.game.currentPlayer;
+      const card = this.handCard(player, cardView);
+      if (!card || !this.canPlayHandCard(player, card)) {
         return { success: false, reason: "Cannot play this card" };
       }
       this.resetTemporaryEffectsIfNeeded();
@@ -648,8 +673,8 @@ export class GameController {
    * Whether the current player can play this hand card now. The turn rules (moves left, draw first,
    * first turn) are checked here; what the card itself needs comes from the model's isPlayableCard.
    */
-  canPlayHandCard(player: PlayerView, card: Card): boolean {
-    if (!this.canMakeMove() || player.id !== this.game.currentPlayer.id || !player.hand.includes(card)) return false;
+  canPlayHandCard(player: PlayerView, card: CardView): boolean {
+    if (!this.canMakeMove() || player.id !== this.game.currentPlayer.id || !player.hand.some(c => c.instanceId === card.instanceId)) return false;
     // First turn: only a creature may be played
     if (this.isFirstTurn() && card.type !== "creature") return false;
     return isPlayableCard(this.game, player, card);
@@ -664,7 +689,7 @@ export class GameController {
     return card && this.game.currentPlayer.hand.includes(card) ? card : null;
   }
 
-  interactWithOpponentCard(playerView: PlayerView, card: Card): PlayResult {
+  interactWithOpponentCard(playerView: PlayerView, card: CardView): PlayResult {
     return this.withNotify(() => {
       if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       const player = this.modelPlayer(playerView);
@@ -675,7 +700,7 @@ export class GameController {
       if (!acting) {
         return { success: false, reason: "No card selected" };
       }
-      if (!player.hand.includes(card)) {
+      if (!this.handCard(player, card)) {
         return { success: false, reason: "That card is not in the opponent's hand" };
       }
 
@@ -704,14 +729,15 @@ export class GameController {
 
   //Interact with Discard pile Logic suite
   /** Always acts for the current player: the revived card goes to their hand. */
-  selectDiscardPileCard(card: Card): PlayResult {
+  selectDiscardPileCard(cardView: CardView): PlayResult {
     return this.withNotify(() => {
       if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
       const acting = this.actingCard();
       if (!acting) {
         return { success: false, reason: "No card selected" };
       }
-      if (!this.canInteractWithDiscardPileCard(card)) {
+      const card = this.discardCard(cardView);
+      if (!card || !this.canInteractWithDiscardPileCard(card)) {
         return { success: false, reason: "Cannot interact with this card" };
       }
 
@@ -732,9 +758,10 @@ export class GameController {
 
 
   //Can interact with Discard pile Logic suite
-  canInteractWithDiscardPileCard(card: Card): boolean {
+  canInteractWithDiscardPileCard(cardView: CardView): boolean {
     if (this.isGameOver()) return false;
-    if (!this.game.discardPile.includes(card)) return false;
+    const card = this.discardCard(cardView);
+    if (!card) return false;
     if (!isRevivePending(this.pendingAction)) return false;
     const acting = this.actingCard();
     return !!acting && canRevive(acting, card);
@@ -762,7 +789,7 @@ export class GameController {
   }
 
   /** Whether the viewer (`getViewer()`) can see `card`, which belongs to `owner` (in their hand or on their field). */
-  isCardVisibleToPlayer(card: Card, owner: PlayerView): boolean {
+  isCardVisibleToPlayer(card: CardView, owner: PlayerView): boolean {
     return isCardVisible(this.game, card, owner, this.viewer());
   }
 
@@ -770,7 +797,7 @@ export class GameController {
    * Whether `card` is permanently face up on the field. Views use it to dim their own face-down cards.
    * To decide whether to show a card's front at all, use `isCardVisibleToPlayer`.
    */
-  isFaceUp(card: Card): boolean {
+  isFaceUp(card: CardView): boolean {
     return card.facedUp;
   }
 

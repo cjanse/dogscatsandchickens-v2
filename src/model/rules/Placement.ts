@@ -1,6 +1,5 @@
-import type { Card } from "../cards/Card";
 import type { Player } from "../game/Player";
-import type { PlayerView } from "../game/views";
+import type { CardView, PlayerView } from "../game/views";
 
 /**
  * Field rows are `[creature, matchingTwin, upgrade (bottom), upgrade (top)]`.
@@ -17,7 +16,7 @@ export function isPlaceableRow(player: Player, row: number): boolean {
 }
 
 /** A creature goes in col 0 or 1, into an empty slot, and only next to its own twin. */
-export function canPlaceCreature(player: Player, card: Card, row: number, col: number): boolean {
+export function canPlaceCreature(player: Player, card: CardView, row: number, col: number): boolean {
   if (!isPlaceableRow(player, row)) return false;
   if (col !== 0 && col !== 1) return false;
   if (player.field[row]?.[col]) return false;

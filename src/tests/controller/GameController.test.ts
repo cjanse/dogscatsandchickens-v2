@@ -34,7 +34,7 @@ describe("GameController", () => {
 
       expect(players[0].hand.length).toBe(0);
 
-      controller.drawCard(players[0]);
+      controller.drawCard();
 
       expect(players[0].hand.length).toBe(1);
       expect(game.deck.size).toBe(2);
@@ -45,8 +45,8 @@ describe("GameController", () => {
         deck: [makeCreature(), makeCreature(), makeCreature()],
       });
 
-      controller.drawCard(players[0]);
-      controller.drawCard(players[0]);
+      controller.drawCard();
+      controller.drawCard();
 
       expect(players[0].hand.length).toBe(1);
       expect(game.deck.size).toBe(2);
@@ -55,8 +55,8 @@ describe("GameController", () => {
     it("does nothing when drawing from an empty deck", () => {
       const { controller, players } = createTestController();
 
-      expect(controller.canDrawCard(players[0])).toBe(false);
-      expect(() => controller.drawCard(players[0])).not.toThrow();
+      expect(controller.canDrawCard()).toBe(false);
+      expect(() => controller.drawCard()).not.toThrow();
       expect(players[0].hand.length).toBe(0);
     });
 
@@ -66,7 +66,7 @@ describe("GameController", () => {
         turnCounts: [0, 0],
       });
 
-      controller.drawCard(players[0]);
+      controller.drawCard();
 
       expect(players[0].hand.length).toBe(0);
     });
@@ -109,11 +109,11 @@ describe("GameController", () => {
   describe("move counting", () => {
     it("does not charge the next player a move when Messy Dorm is active at endTurn", () => {
       const dorm = makeAction("Messy_Dorm_1", "messyDorm");
-      const { controller, game, players } = createTestController({
+      const { controller, game } = createTestController({
         hands: [[dorm], []],
       });
 
-      expect(controller.selectHandCard(players[0], dorm).success).toBe(true);
+      expect(controller.selectHandCard(dorm).success).toBe(true);
       expect(game.temporaryEffects.length).toBe(1);
 
       controller.endTurn();
@@ -131,7 +131,7 @@ describe("GameController", () => {
         hands: [[dorm, creature], []],
       });
 
-      controller.selectHandCard(players[0], dorm);
+      controller.selectHandCard(dorm);
       // Clearing the reveal costs 1 move and the creature costs another
       expect(controller.playCard(players[0], creature, 0, 1).success).toBe(true);
 
@@ -158,13 +158,13 @@ describe("GameController", () => {
     it("does not count a move when the discard pile card is the wrong type", () => {
       const spirits = makeAction("Forest_Spirits", "spirit");
       const wrongType = makeAction("Messy_Dorm_1", "messyDorm");
-      const { controller, game, players } = createTestController({
+      const { controller, game } = createTestController({
         hands: [[spirits], []],
       });
       game.discard(makeCreature("discarded_dog"));
       game.discard(wrongType);
 
-      controller.selectHandCard(players[0], spirits);
+      controller.selectHandCard(spirits);
       const result = controller.selectDiscardPileCard(wrongType);
 
       expect(result.success).toBe(false);
@@ -181,7 +181,7 @@ describe("GameController", () => {
       });
       game.discard(lastDiscarded);
 
-      controller.selectHandCard(players[0], spirits);
+      controller.selectHandCard(spirits);
       const result = controller.selectDiscardPileCard(notDiscarded);
 
       expect(result.success).toBe(false);
@@ -199,7 +199,7 @@ describe("GameController", () => {
       });
       game.discard(discarded);
 
-      controller.selectHandCard(players[0], spirits);
+      controller.selectHandCard(spirits);
       const result = controller.selectDiscardPileCard(discarded);
 
       expect(result.success).toBe(true);
@@ -216,7 +216,7 @@ describe("GameController", () => {
         hands: [[birdArmy], [makeAction("Messy_Dorm_1", "messyDorm")]],
       });
 
-      controller.selectHandCard(players[0], birdArmy);
+      controller.selectHandCard(birdArmy);
       expect(controller.getPendingAction()).toBe("stealCard");
 
       const result = controller.interactWithOpponentCard(players[1], opponentCard);
@@ -234,7 +234,7 @@ describe("GameController", () => {
         hands: [[birdArmy], [stealable]],
       });
 
-      controller.selectHandCard(players[0], birdArmy);
+      controller.selectHandCard(birdArmy);
       const result = controller.interactWithOpponentCard(players[1], stealable);
 
       expect(result.success).toBe(true);
@@ -254,13 +254,13 @@ describe("GameController", () => {
       });
 
       // No creature on the field: no draw is owed yet, so moves are allowed
-      expect(controller.canDrawCard(players[0])).toBe(false);
+      expect(controller.canDrawCard()).toBe(false);
       expect(controller.mustDrawFirst()).toBe(false);
 
       expect(controller.playCard(players[0], creature, 0, 0).success).toBe(true);
 
-      expect(controller.canDrawCard(players[0])).toBe(true);
-      controller.drawCard(players[0]);
+      expect(controller.canDrawCard()).toBe(true);
+      controller.drawCard();
       expect(players[0].hand.length).toBe(1);
       expect(game.deck.size).toBe(1);
     });
@@ -275,7 +275,7 @@ describe("GameController", () => {
       });
       game.discard(discarded);
 
-      controller.selectHandCard(players[0], spirits);
+      controller.selectHandCard(spirits);
       expect(controller.selectDiscardPileCard(discarded).success).toBe(true);
       expect(controller.playCard(players[0], discarded, 0, 0).success).toBe(true);
       expect(controller.getMovesLeft()).toBe(0);
@@ -284,8 +284,8 @@ describe("GameController", () => {
       expect(blocked).toEqual({ success: false, reason: "You must draw first" });
       expect(game.currentPlayerIndex).toBe(0);
 
-      expect(controller.canDrawCard(players[0])).toBe(true);
-      controller.drawCard(players[0]);
+      expect(controller.canDrawCard()).toBe(true);
+      controller.drawCard();
       expect(game.deck.size).toBe(0);
 
       expect(controller.endTurn().success).toBe(true);
@@ -307,7 +307,7 @@ describe("GameController", () => {
       expect(controller.startAttack(0, 0)).toEqual({ success: false, reason: "You must draw first" });
       expect(controller.canEndTurn()).toBe(false);
 
-      controller.drawCard(players[0]);
+      controller.drawCard();
 
       expect(controller.mustDrawFirst()).toBe(false);
       expect(controller.canAttackWith(0, 0)).toBe(true);
@@ -338,7 +338,7 @@ describe("GameController", () => {
       expect(controller.mustDrawFirst()).toBe(false);
 
       expect(controller.canPlayHandCard(players[0], dorm)).toBe(false);
-      expect(controller.selectHandCard(players[0], dorm).success).toBe(false);
+      expect(controller.selectHandCard(dorm).success).toBe(false);
       expect(controller.canPlayHandCard(players[0], upgrade)).toBe(false);
       expect(controller.canPlayCard(players[0], upgrade, 0, 2)).toBe(false);
       expect(controller.canAttackWith(0, 0)).toBe(false);

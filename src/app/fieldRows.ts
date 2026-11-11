@@ -1,10 +1,10 @@
-import type { Card } from "../model/cards/Card";
+import type { CardView } from "../model/game/views";
 import type { FieldView } from "../model/game/views";
 
 export interface FieldRowView {
   /** The row index to give the controller. -1 and field.length are the new rows above and below the field. */
   modelRow: number;
-  cells: readonly (Card | null)[];
+  cells: readonly (CardView | null)[];
   isPlaceholder: boolean;
 }
 
@@ -17,7 +17,7 @@ const FIELD_COLS = 4;
 export function fieldRowsWithPlaceholders(field: FieldView): FieldRowView[] {
   const placeholder = (modelRow: number): FieldRowView => ({
     modelRow,
-    cells: Array<Card | null>(FIELD_COLS).fill(null),
+    cells: Array<CardView | null>(FIELD_COLS).fill(null),
     isPlaceholder: true,
   });
 
@@ -34,13 +34,13 @@ export function fieldRowsWithPlaceholders(field: FieldView): FieldRowView[] {
  * How many columns a row needs on screen: 1 for an empty row (somewhere to drop a creature),
  * 3 for a creature with no upgrade (creature, twin slot, first upgrade slot), 4 once it has an upgrade.
  */
-export function columnsInUse(cells: readonly (Card | null)[]): number {
+export function columnsInUse(cells: readonly (CardView | null)[]): number {
   if (!cells.some(card => card?.type === "creature")) return 1;
   return cells.some(card => card?.type === "upgrade") ? 4 : 3;
 }
 
 export interface VisualCell {
-  cell: Card | null;
+  cell: CardView | null;
   /** The column index to give the controller. */
   modelCol: number;
 }
@@ -49,7 +49,7 @@ export interface VisualCell {
  * The first `colsToShow` cells of a row in screen order, each with its model column. The opponent's
  * field is drawn mirrored, so their cells come out in reverse.
  */
-export function visualCells(cells: readonly (Card | null)[], isOpponent: boolean, colsToShow = FIELD_COLS): VisualCell[] {
+export function visualCells(cells: readonly (CardView | null)[], isOpponent: boolean, colsToShow = FIELD_COLS): VisualCell[] {
   const shown = cells.slice(0, colsToShow).map((cell, modelCol) => ({ cell, modelCol }));
   return isOpponent ? shown.reverse() : shown;
 }

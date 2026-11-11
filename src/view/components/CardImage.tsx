@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 import type { GameControls } from "../../app/useGameController";
-import type { Card } from "../../model/cards/Card";
-import type { PlayerView } from "../../model/game/views";
+import type { CardView, PlayerView } from "../../model/game/views";
 import { cardBackUrl, cardFrontUrl } from "../../app/cardImages";
 
 /**
@@ -11,7 +10,7 @@ import { cardBackUrl, cardFrontUrl } from "../../app/cardImages";
  */
 export function CardImage({ controls, card, owner, onField = false, className, style, onClick }: {
   controls: GameControls;
-  card: Card;
+  card: CardView;
   /** The player whose hand or field holds the card. */
   owner: PlayerView;
   onField?: boolean;
