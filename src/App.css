@@ -65,3 +65,28 @@
   position: relative;
   z-index: 10;
 }
+
+/* The Activate button on the top card of a face-down matched pair (see FieldCell). */
+.activate-pair-button {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Above the hover zoom of .field-card-image */
+  z-index: 20;
+  padding: 1px 4px;
+  border: 1px solid #000;
+  border-radius: 3px;
+  background: #ffd54a;
+  color: #000;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 0 4px rgba(255, 196, 0, 0.9);
+}
+
+.activate-pair-button:hover {
+  background: #ffe680;
+}

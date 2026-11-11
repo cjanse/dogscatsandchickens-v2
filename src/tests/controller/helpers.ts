@@ -25,6 +25,19 @@ export function makeCreature(
   }) as CreatureCard;
 }
 
+/**
+ * Marks two twins as a matched pair, as `formPair` does. With `active`, both also flip face up, so the
+ * pair's ability is on. Without it the pair is face down and waiting to be activated.
+ */
+export function matchPair(a: CreatureCard, b: CreatureCard, { active }: { active: boolean }): void {
+  a.matched = true;
+  b.matched = true;
+  if (active) {
+    a.reveal();
+    b.reveal();
+  }
+}
+
 export function makeAction(id: string, actionType: ActionType): Card {
   return CardFactory.create({
     id,

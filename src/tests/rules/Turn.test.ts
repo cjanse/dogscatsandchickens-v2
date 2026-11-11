@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { canDraw, canStartAttack, firstTurnAllows, isFirstTurn } from "../../model/rules/Turn";
 import type { CreatureCard } from "../../model/cards/CreatureCard";
-import { createTestController, makeAction, makeCreature, makeUpgrade } from "../controller/helpers";
+import { createTestController, makeAction, makeCreature, makeUpgrade, matchPair } from "../controller/helpers";
 
 describe("isFirstTurn and firstTurnAllows", () => {
   it("only allows a creature on a player's first turn", () => {
@@ -62,11 +62,11 @@ describe("canStartAttack", () => {
     expect(canStartAttack(game, players[0].field[0][0] as CreatureCard)).toBe(false);
   });
 
-  it("lets a matched Cat attack again, but not another creature", () => {
+  it("lets an active matched Cat attack again, but not another creature", () => {
     const cat = makeCreature("twin_cat", "cat", "multipleAttacks");
     const dog = makeCreature("dog");
     const { game } = createTestController();
-    cat.matched = true;
+    matchPair(cat, makeCreature("twin_cat", "cat", "multipleAttacks"), { active: true });
 
     game.turn.beginAttack({ card: cat, row: 0, col: 0 });
     game.turn.useAllMoves(game.maxMovesPerTurn);

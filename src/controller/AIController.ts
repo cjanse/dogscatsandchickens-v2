@@ -30,6 +30,7 @@ export class AIController {
     // Draw first. On a recovery turn the draw only becomes available once a
     // creature is on the field, so retry after every move.
     this.drawIfPossible();
+    this.activateHiddenPairs();
 
     // Keep making moves while there are moves left
     while (this.gameController.getMovesLeft() > 0) {
@@ -42,6 +43,7 @@ export class AIController {
       const randomMove = moves[Math.floor(Math.random() * moves.length)];
       this.executeMove(randomMove, currentPlayer);
       this.drawIfPossible();
+      this.activateHiddenPairs();
     }
 
     // Handle card discard if needed
@@ -55,6 +57,19 @@ export class AIController {
   private drawIfPossible(): void {
     if (this.gameController.canDrawCard()) {
       this.gameController.drawCard();
+    }
+  }
+
+  /**
+   * Activates every face-down pair on the AI's field. Activation costs no move and is never worse than
+   * waiting in v1, so the AI does it as soon as it can, including right after it matches a twin.
+   */
+  private activateHiddenPairs(): void {
+    const field = this.gameController.getGameState().currentPlayer.field;
+    for (let row = 0; row < field.length; row++) {
+      if (this.gameController.canActivatePair(row)) {
+        this.gameController.activatePair(row);
+      }
     }
   }
 

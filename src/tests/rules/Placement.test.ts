@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Player } from "../../model/game/Player";
 import { canPlaceCreature, canPlaceUpgrade, hasUpgradeSlot } from "../../model/rules/Placement";
-import { canAttackAgain } from "../../model/rules/Matching";
 import { makeCreature, makeUpgrade } from "../controller/helpers";
 
 describe("canPlaceCreature", () => {
@@ -78,18 +77,5 @@ describe("hasUpgradeSlot", () => {
     player.field[0][2] = makeUpgrade();
     player.field[0][3] = makeUpgrade();
     expect(hasUpgradeSlot(player)).toBe(false);
-  });
-});
-
-describe("canAttackAgain", () => {
-  it("is only true for a matched Cat", () => {
-    const cat = makeCreature("bella", "cat");
-    expect(canAttackAgain(cat)).toBe(false);
-    cat.matched = true;
-    expect(canAttackAgain(cat)).toBe(true);
-
-    const dog = makeCreature();
-    dog.matched = true;
-    expect(canAttackAgain(dog)).toBe(false);
   });
 });

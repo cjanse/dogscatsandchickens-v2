@@ -13,7 +13,7 @@ import {
   startHandReveal,
   stealRandomCard,
 } from "../../model/rules/Actions";
-import { createTestController, makeAction, makeCreature, makeUpgrade } from "../controller/helpers";
+import { createTestController, makeAction, makeCreature, makeUpgrade, matchPair } from "../controller/helpers";
 
 const action = (id: string, type: ActionType) => makeAction(id, type) as ActionCard;
 
@@ -157,9 +157,48 @@ describe("Power of Tea", () => {
   });
 
   it("flips the target face up", () => {
-    const { players } = createTestController();
-    revealWithTea(players[1], 0, 0);
+    const { game, players } = createTestController();
+    revealWithTea(game, players[1], 0, 0);
     expect(players[1].field[0][0]!.facedUp).toBe(true);
+  });
+
+  it("flips an upgrade on its own", () => {
+    const { game, players } = createTestController();
+    const upgrade = makeUpgrade();
+    players[1].field[0][2] = upgrade;
+
+    revealWithTea(game, players[1], 0, 2);
+
+    expect(upgrade.facedUp).toBe(true);
+    expect(players[1].field[0][0]!.facedUp).toBe(false);
+  });
+
+  it("flips both cards of a face-down pair, whichever one it targets, and activates it", () => {
+    const bottom = makeCreature("bella", "cat", "multipleAttacks");
+    const top = makeCreature("bella", "cat", "multipleAttacks");
+    matchPair(bottom, top, { active: false });
+    const { game, players } = createTestController({ fields: [[makeCreature()], [bottom, top]] });
+
+    revealWithTea(game, players[1], 0, 1);
+
+    expect(bottom.facedUp).toBe(true);
+    expect(top.facedUp).toBe(true);
+  });
+
+  it("revealing a face-down matched Chicken activates it: the Tea player's field flips", () => {
+    const bottom = makeCreature("lulu", "chicken", "seeEverything");
+    const top = makeCreature("lulu", "chicken", "seeEverything");
+    matchPair(bottom, top, { active: false });
+    const teaPlayersCreature = makeCreature("rex", "dog");
+    const teaPlayersUpgrade = makeUpgrade();
+    const { game, players } = createTestController({ fields: [[teaPlayersCreature], [bottom, top]] });
+    players[0].field[0][2] = teaPlayersUpgrade;
+
+    revealWithTea(game, players[1], 0, 0);
+
+    expect(top.facedUp).toBe(true);
+    expect(teaPlayersCreature.facedUp).toBe(true);
+    expect(teaPlayersUpgrade.facedUp).toBe(true);
   });
 });
 

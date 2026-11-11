@@ -79,7 +79,7 @@ describe('Player', () => {
             expect(player.field[1][0]).toBe(first);
         });
 
-        it('does not add rows when playing into an existing row, and detects a matched pair', () => {
+        it('does not add rows when playing into an existing row, and reports the twin without pairing or revealing it', () => {
             const player = new Player(0);
             const first = CardFactory.create(dogData());
             const twin = CardFactory.create(dogData());
@@ -91,7 +91,11 @@ describe('Player', () => {
 
             expect(player.field).toHaveLength(1);
             expect(matched).toEqual({ placed: true, match: { card: twin, twin: first } });
-            expect((first as CreatureCard).matched).toBe(true);
+            // Pairing and revealing are rules (formPair in rules/Matching.ts), not the placement's job
+            for (const card of [first, twin]) {
+                expect((card as CreatureCard).matched).toBe(false);
+                expect(card.facedUp).toBe(false);
+            }
         });
 
         it('does nothing for a row that does not exist', () => {

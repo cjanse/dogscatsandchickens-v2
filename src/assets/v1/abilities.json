@@ -1,0 +1,14 @@
+{
+    "multipleAttacks": {
+        "name": "Multiple Attacks",
+        "description": "On an attack turn, this Cat may attack again and again for as long as it survives."
+    },
+    "alwaysWin": {
+        "name": "Defeats Any Creature",
+        "description": "This Dog also wins the battles it starts against another Dog. It still loses to a Chicken."
+    },
+    "seeEverything": {
+        "name": "Opponent Must Have All Face-Up Cards",
+        "description": "Every card on the opponent's field flips face up."
+    }
+}

@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import type { Card } from "../../model/cards/Card";
 import type { CreatureType } from "../../model/types/CreatureType";
-import { createTestController, makeCreature, makeUpgrade } from "./helpers";
+import { createTestController, makeCreature, makeUpgrade, matchPair } from "./helpers";
 
 /**
  * Player 0's creature (row 0, col 0) attacks player 1's creature (row 0, col 0).
- * Pass a pair to fill col 1 with a matched twin.
+ * Pass `matchedAttacker` to fill col 1 with a matched twin. The pair starts face down (not yet activated).
  */
 function setupBattle(attackerType: CreatureType, defenderType: CreatureType, opts: { matchedAttacker?: boolean } = {}) {
   const attacker = makeCreature(`att_${attackerType}`, attackerType);
@@ -13,8 +13,7 @@ function setupBattle(attackerType: CreatureType, defenderType: CreatureType, opt
   const attackerRow: Card[] = [attacker];
   if (opts.matchedAttacker) {
     const twin = makeCreature(`att_${attackerType}`, attackerType);
-    attacker.matched = true;
-    twin.matched = true;
+    matchPair(attacker, twin, { active: false });
     attackerRow.push(twin);
   }
   const setup = createTestController({ fields: [attackerRow, [defender]] });
@@ -131,12 +130,47 @@ describe("upgrades that save the defender", () => {
 });
 
 describe("matching abilities", () => {
-  it("lets a matched Cat attack again", () => {
-    const { controller } = setupBattle("cat", "cat", { matchedAttacker: true });
+  it("lets a face-down matched Cat attack again: its first attack flips and activates it", () => {
+    const { controller, players } = setupBattle("cat", "cat", { matchedAttacker: true });
 
     attack(controller);
 
+    expect(players[0].field[0][1]!.facedUp).toBe(true);
     expect(controller.canAttackWith(0, 0)).toBe(true);
+  });
+
+  it("an attack flips both cards of a face-down pair", () => {
+    const { controller, players, attacker } = setupBattle("cat", "chicken", { matchedAttacker: true });
+    const twin = players[0].field[0][1]!;
+
+    attack(controller);
+
+    expect(attacker.facedUp).toBe(true);
+    expect(twin.facedUp).toBe(true);
+  });
+
+  it("a face-down matched Dog wins against a Dog: the attack flips it before the fight", () => {
+    const { controller, game, defender } = setupBattle("dog", "dog", { matchedAttacker: true });
+
+    attack(controller);
+
+    expect(game.discardPile).toContain(defender);
+  });
+
+  it("a face-down matched Chicken that gets attacked flips the attacker's field", () => {
+    const attacker = makeCreature("att_cat", "cat");
+    const attackerUpgrade = makeUpgrade("defense_1", "defense");
+    const bottom = makeCreature("lulu", "chicken", "seeEverything");
+    const top = makeCreature("lulu", "chicken", "seeEverything");
+    matchPair(bottom, top, { active: false });
+    const { controller, game, players } = createTestController({ fields: [[attacker], [bottom, top]] });
+    players[0].field[0][2] = attackerUpgrade;
+
+    attack(controller);
+
+    expect(attackerUpgrade.facedUp).toBe(true);
+    // The Cat still beats the Chicken: the flip happens before the fight, the pair is then defeated
+    expect(game.discardPile).toEqual(expect.arrayContaining([bottom, top]));
   });
 
   it("does not let an unmatched creature attack again", () => {
@@ -147,7 +181,7 @@ describe("matching abilities", () => {
     expect(controller.canAttackWith(0, 0)).toBe(false);
   });
 
-  it("matching a Chicken reveals every card on the opponent's field", () => {
+  it("matching a Chicken keeps the pair face down; activating it reveals every card on the opponent's field", () => {
     const bottom = makeCreature("lulu", "chicken", "seeEverything");
     const top = makeCreature("lulu", "chicken", "seeEverything");
     const opponentCreature = makeCreature("def_cat", "cat");
@@ -162,9 +196,34 @@ describe("matching abilities", () => {
 
     expect(bottom.matched).toBe(true);
     expect(top.matched).toBe(true);
-    expect(opponentCreature.facedUp).toBe(true);
-    expect(opponentUpgrade.facedUp).toBe(true);
+    expect(top.facedUp).toBe(false);
+    expect(opponentCreature.facedUp).toBe(false);
+    expect(controller.getMovesLeft()).toBe(1);
+
+    expect(controller.activatePair(0).success).toBe(true);
+
+    expect(bottom.facedUp).toBe(true);
+    expect(top.facedUp).toBe(true);
     expect(players[1].field.flat().filter(c => c !== null).every(c => c!.facedUp)).toBe(true);
+    // Activation is free
+    expect(controller.getMovesLeft()).toBe(1);
+  });
+
+  it("matching onto a face-up creature activates the pair at once", () => {
+    const bottom = makeCreature("lulu", "chicken", "seeEverything");
+    const top = makeCreature("lulu", "chicken", "seeEverything");
+    const opponentCreature = makeCreature("def_cat", "cat");
+    const { controller, players } = createTestController({
+      hands: [[top], []],
+      fields: [[bottom], [opponentCreature]],
+    });
+    bottom.reveal();
+
+    expect(controller.playCard(players[0], top, 0, 1).success).toBe(true);
+
+    expect(top.facedUp).toBe(true);
+    expect(opponentCreature.facedUp).toBe(true);
+    expect(controller.canActivatePair(0)).toBe(false);
   });
 
   it("records a win only at End Turn, after an attack defeats the opponent's last creature", () => {

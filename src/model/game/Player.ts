@@ -2,7 +2,7 @@ import type { Card } from "../cards/Card";
 import type { CreatureCard } from "../cards/CreatureCard";
 import type { PlayerView } from "./views";
 
-/** What `Player.playToField` did: it either placed the card (maybe making a matched pair) or changed nothing. */
+/** What `Player.playToField` did: it either placed the card (maybe next to its twin) or changed nothing. */
 export type PlaceResult =
     | { placed: false }
     | { placed: true; match: { card: CreatureCard; twin: CreatureCard } | null };
@@ -70,7 +70,8 @@ export class Player implements PlayerView {
      * Plays a hand card into a field slot. `row === -1` opens a new row above all rows and
      * `row === field.length` opens one below; any other row must already exist.
      * Reports whether the card was placed. Nothing changes (no new row either) when it wasn't.
-     * A creature placed next to its twin (same card id) makes a matched pair, which is returned for the caller.
+     * A creature placed next to its twin (same card id) is reported in `match`. Placing doesn't pair or reveal
+     * anything: `formPair` in rules/Matching.ts does that.
      */
     playToField(instanceId: string, row: number, col: number): PlaceResult {
         const playCard = this.hand.find(obj => obj.instanceId === instanceId);
@@ -98,13 +99,7 @@ export class Player implements PlayerView {
         }
         const twin = this.field[row][col === 0 ? 1 : 0];
         if (twin && twin.id === playCard.id) {
-            const card = playCard as CreatureCard;
-            const twinCard = twin as CreatureCard;
-            twinCard.reveal();
-            twinCard.matched = true;
-            card.reveal();
-            card.matched = true;
-            return { placed: true, match: { card, twin: twinCard } };
+            return { placed: true, match: { card: playCard as CreatureCard, twin: twin as CreatureCard } };
         }
         return { placed: true, match: null };
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { AIController } from "../../controller/AIController";
 import type { Player } from "../../model/game/Player";
-import { createTestController, makeAction, makeCreature, makeUpgrade } from "./helpers";
+import { createTestController, makeAction, makeCreature, makeUpgrade, matchPair } from "./helpers";
 
 function fieldCreatures(player: Player) {
   return player.field.flat().filter(card => card?.type === "creature");
@@ -27,6 +27,28 @@ describe("AIController", () => {
     expect(players[1].hand).toEqual([dorm, upgrade]);
     // No draw on the first turn
     expect(game.deck.size).toBe(1);
+  });
+
+  it("activates a face-down matched pair it holds", () => {
+    const bottom = makeCreature("ai_lulu", "chicken", "seeEverything");
+    const top = makeCreature("ai_lulu", "chicken", "seeEverything");
+    matchPair(bottom, top, { active: false });
+    const humanCreature = makeCreature();
+    const { controller, game } = createTestController({
+      deck: [makeCreature("deck_1")],
+      fields: [[humanCreature], [bottom, top]],
+      currentPlayerIndex: 1,
+      player2IsAI: true,
+    });
+    // No moves, so no attack can flip the human's creature: only the activation can
+    game.turn.useAllMoves(game.maxMovesPerTurn);
+
+    new AIController(controller).executeAITurn();
+
+    expect(bottom.facedUp).toBe(true);
+    expect(top.facedUp).toBe(true);
+    // The Chicken's ability ran
+    expect(humanCreature.facedUp).toBe(true);
   });
 
   it("draws after a recovery move puts a creature on the field", () => {

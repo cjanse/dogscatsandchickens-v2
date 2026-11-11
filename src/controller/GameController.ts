@@ -9,9 +9,10 @@ import type { CreatureCard } from "../model/cards/CreatureCard";
 import type { TurnType } from "../model/types/TurnType";
 import type { GameResult } from "../model/types/GameResult";
 import type { CardType } from "../model/types/CardType";
+import type { MatchingAbilityType } from "../model/types/MatchingAbilityType";
 import type { CardView, GameView, PlayerView } from "../model/game/views";
 import { resolveBattle } from "../model/rules/Battle";
-import { activateMatchedAbility, canAttackAgain } from "../model/rules/Matching";
+import { activatePair, canActivatePair, canAttackAgain, formPair, pairAbility } from "../model/rules/Matching";
 import { setUpGame } from "../model/rules/Setup";
 import { lossResult, tieResult, winResult } from "../model/rules/GameEnd";
 import { HAND_LIMIT, isOverHandLimit } from "../model/rules/HandLimit";
@@ -427,9 +428,8 @@ export class GameController {
   ): PlayResult {
     const placed = player.playToField(card.instanceId, row, col);
     if (!placed.placed) return { success: false, reason: "Invalid card placement" };
-    if (placed.match) {
-      activateMatchedAbility(this.game, player, placed.match.card);
-    }
+    // The pair stays face down until it is activated, unless the twin underneath was already face up
+    if (placed.match) formPair(this.game, player, placed.match);
     return { success: true };
   }
 
@@ -452,11 +452,62 @@ export class GameController {
 
     // Clear temp effects BEFORE resolving
     this.resetTemporaryEffectsIfNeeded();
-    revealWithTea(this.modelPlayer(owner), row, col);
+    revealWithTea(this.game, this.modelPlayer(owner), row, col);
     this.completeAction(tea.instanceId);
     return { success: true };
   }
   //End Play card logic suite
+
+  // Matched pairs
+  /**
+   * Whether the current player may activate the face-down pair in `row` of their field. Activation costs
+   * no move and works at any time on their turn once they have drawn, whatever is selected.
+   */
+  canActivatePair(row: number): boolean {
+    return !this.isGameOver() && !this.mustDrawFirst() && canActivatePair(this.game.currentPlayer, row);
+  }
+
+  /**
+   * Activates the current player's face-down pair in `row`: it flips face up and its ability turns on.
+   * Costs no move and leaves the selection alone. The AI calls this; humans go through `clickActivate`.
+   */
+  activatePair(row: number): PlayResult {
+    return this.withNotify(() => {
+      if (!this.canActivatePair(row)) {
+        return { success: false, reason: "There is no face-down pair to activate there" };
+      }
+      activatePair(this.game, this.game.currentPlayer, row);
+      return { success: true };
+    });
+  }
+
+  /**
+   * Which ability the matched pair in `row` of `owner`'s field has, so the views can name it. Null if there
+   * is no pair there, or if the viewer can't see it (an opponent's pair that is still face down).
+   */
+  getPairAbility(owner: PlayerView, row: number): MatchingAbilityType | null {
+    const player = this.modelPlayer(owner);
+    const ability = pairAbility(player, row);
+    const card = player.field[row]?.[0];
+    if (ability === null || !card || !this.isCardVisibleToPlayer(card, owner)) return null;
+    return ability;
+  }
+
+  /** Whether the Activate button shows on `owner`'s row: it is a human's own hidden pair, on their turn. */
+  canClickActivate(owner: PlayerView, row: number): boolean {
+    return this.isHumanTurn() && owner.id === this.game.currentPlayer.id && this.canActivatePair(row);
+  }
+
+  /** The Activate button's click. Refuses during the AI's turn and on anyone else's field. */
+  clickActivate(owner: PlayerView, row: number): PlayResult {
+    return this.withNotify(() => {
+      if (!this.isHumanTurn()) return AI_TURN_REFUSAL;
+      if (owner.id !== this.game.currentPlayer.id) {
+        return { success: false, reason: "You can only activate your own pairs" };
+      }
+      return this.activatePair(row);
+    });
+  }
 
   // Begin can Play Card Validation Suite
   /** Reinforce only: can this creature or upgrade go on `player`'s field at (row, col)? */

@@ -4,6 +4,7 @@ import type { GameBoard, TemporaryEffect } from "../game/GameBoard";
 import type { Player } from "../game/Player";
 import type { CardView, GameView, PlayerView } from "../game/views";
 import type { CardType } from "../types/CardType";
+import { revealCreature } from "./Matching";
 import { hasUpgradeSlot } from "./Placement";
 
 /**
@@ -102,10 +103,18 @@ export function canRevealWithTea(owner: PlayerView, row: number, col: number): b
   return !!target && !target.facedUp;
 }
 
-/** Flips the card at (row, col) on `owner`'s field face up. */
-export function revealWithTea(owner: Player, row: number, col: number): void {
+/**
+ * Flips the card at (row, col) on `owner`'s field face up. A creature in a matched pair flips with its
+ * twin, which activates the pair (a matched Chicken then flips the Tea player's field).
+ */
+export function revealWithTea(board: GameBoard, owner: Player, row: number, col: number): void {
   const target = owner.field[row]?.[col];
-  if (target) target.reveal();
+  if (!target) return;
+  if (target.type === "creature") {
+    revealCreature(board, owner, row);
+  } else {
+    target.reveal();
+  }
 }
 
 // Messy Dorm

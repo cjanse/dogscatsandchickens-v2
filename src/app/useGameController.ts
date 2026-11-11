@@ -10,6 +10,8 @@ import { loadV1Assets } from "./loadV1Assets";
 export type GameQueries = Pick<
   GameController,
   | "canClickField"
+  | "canClickActivate"
+  | "getPairAbility"
   | "canPlayHandCard"
   | "canClickDeck"
   | "canEndTurn"
@@ -52,6 +54,8 @@ export interface GameControls {
   canFinishTurn: boolean;
 
   clickField: (owner: PlayerView, row: number, col: number) => void;
+  /** Activates the face-down matched pair in `row` of `owner`'s field (the viewer's own, on their turn). */
+  activatePair: (owner: PlayerView, row: number) => void;
   clickHandCard: (card: CardView) => void;
   clickOpponentHandCard: (card: CardView) => void;
   /** Returns true when the pick worked, so the view can close the discard list. */
@@ -105,6 +109,7 @@ export function useGameController({ player2IsAI = true }: { player2IsAI?: boolea
     showDiscardExtra: controller.canStartDiscardPhase(),
     canFinishTurn: controller.canFinishTurn(),
     clickField: (owner, row, col) => { run(() => controller.clickField(owner, row, col)); },
+    activatePair: (owner, row) => { run(() => controller.clickActivate(owner, row)); },
     clickHandCard: card => { run(() => controller.clickHandCard(card)); },
     clickOpponentHandCard: card => { run(() => controller.interactWithOpponentCard(opponent, card)); },
     clickDiscardPileCard: card => run(() => controller.selectDiscardPileCard(card)),

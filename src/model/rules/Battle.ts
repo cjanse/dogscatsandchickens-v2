@@ -2,6 +2,7 @@ import type { CreatureCard } from "../cards/CreatureCard";
 import type { GameBoard } from "../game/GameBoard";
 import type { Player } from "../game/Player";
 import { attackerWins, defenderWins } from "./Matchup";
+import { revealCreature } from "./Matching";
 import { resolveUpgradeStack } from "./Upgrades";
 
 /** A creature in a battle, and the field row it sits in. */
@@ -17,10 +18,13 @@ export type BattleOutcome =
   | "defenderWon"    // the attacker was defeated; its own upgrades don't help
   | "standoff";      // same type: nothing happens
 
-/** Flips both creatures face up and resolves the attack. */
+/**
+ * Flips both creatures face up and resolves the attack. A face-down matched pair flips both cards and
+ * activates, before the types are compared (so a hidden matched Dog attacking a Dog wins).
+ */
 export function resolveBattle(board: GameBoard, attacker: Combatant, defender: Combatant): BattleOutcome {
-  attacker.card.reveal();
-  defender.card.reveal();
+  revealCreature(board, attacker.player, attacker.row);
+  revealCreature(board, defender.player, defender.row);
 
   if (attackerWins(attacker.card, defender.card)) {
     if (resolveUpgradeStack(board, defender, attacker)) {
