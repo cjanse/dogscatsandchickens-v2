@@ -331,6 +331,61 @@ describe("Messy Dorm and the selection", () => {
     controller.clickHandCard(dorm);
     expect(controller.isCardVisibleToPlayer(held, players[1])).toBe(false);
   });
+
+  it("charges the Dorm's move as soon as it is played", () => {
+    const dorm = makeAction("Messy_Dorm_1", "messyDorm");
+    const { controller } = createTestController({ hands: [[dorm], []] });
+
+    controller.clickHandCard(dorm);
+
+    expect(controller.getMovesLeft()).toBe(1);
+  });
+
+  // Regression: the Dorm used to be charged only when the reveal ended, after the next card had
+  // already been checked against the moves left, so a Dorm on the last move gave a free action.
+  describe("on the last move of the turn", () => {
+    function lastMoveWithDorm(next: Card, opponentHand: Card[] = []) {
+      const dorm = makeAction("Messy_Dorm_1", "messyDorm");
+      const setup = createTestController({ hands: [[dorm, next], opponentHand] });
+      setup.game.turn.useMove(); // one of the two moves is already spent
+      expect(setup.controller.clickHandCard(dorm)).toEqual({ success: true });
+      return setup;
+    }
+
+    it("won't start a Bird Army steal after the Dorm", () => {
+      const birdArmy = makeAction("Bird_Army_1", "birdArmy");
+      const target = makeCreature("opp_card");
+      const { controller, game, players } = lastMoveWithDorm(birdArmy, [target]);
+
+      expect(controller.clickHandCard(birdArmy).success).toBe(false);
+      expect(controller.interactWithOpponentCard(players[1], target).success).toBe(false);
+
+      expect(players[1].hand).toEqual([target]);
+      expect(game.turn.movesThisTurn).toBe(game.maxMovesPerTurn);
+    });
+
+    it("won't start a Spirit revive after the Dorm", () => {
+      const spirits = makeAction("Forest_Spirits", "spirit");
+      const fallen = makeCreature("fallen");
+      const { controller, game, players } = lastMoveWithDorm(spirits);
+      game.discard(fallen);
+
+      expect(controller.clickHandCard(spirits).success).toBe(false);
+      expect(controller.selectDiscardPileCard(fallen).success).toBe(false);
+
+      expect(game.discardPile).toContain(fallen);
+      expect(players[0].hand).not.toContain(fallen);
+      expect(game.turn.movesThisTurn).toBe(game.maxMovesPerTurn);
+    });
+
+    it("won't let a creature be picked up after the Dorm", () => {
+      const creature = makeCreature("held");
+      const { controller, players } = lastMoveWithDorm(creature);
+
+      expect(controller.clickHandCard(creature).success).toBe(false);
+      expect(controller.canPlayHandCard(players[0], creature)).toBe(false);
+    });
+  });
 });
 
 describe("the card behind a pending action", () => {
