@@ -5,6 +5,7 @@ import {
   playerHasCreatures,
   tieResult,
 } from "../../model/rules/GameEnd";
+import type { CreatureCard } from "../../model/cards/CreatureCard";
 import { createTestController, makeAction, makeCreature } from "../controller/helpers";
 
 describe("playerHasCreatures", () => {
@@ -44,37 +45,38 @@ describe("lossResult", () => {
 });
 
 describe("tieResult", () => {
-  const sameType = [[makeCreature()], [makeCreature("other_dog", "dog")]] as [
-    ReturnType<typeof makeCreature>[],
-    ReturnType<typeof makeCreature>[],
-  ];
+  const sameType = () =>
+    [[makeCreature()], [makeCreature("other_dog", "dog")]] as [CreatureCard[], CreatureCard[]];
 
   it("is a tie with an empty deck, one creature type and nothing playable", () => {
-    const { game } = createTestController({ fields: sameType, hands: [[makeAction("tea", "powerOfTea")], []] });
-    expect(tieResult(game, () => false)).toEqual({ state: "tie" });
+    // Bird Army can't be played against an empty hand
+    const { game } = createTestController({ fields: sameType(), hands: [[makeAction("birds", "birdArmy")], []] });
+    expect(tieResult(game)).toEqual({ state: "tie" });
   });
 
   it("is ongoing while the deck still has cards", () => {
-    const { game } = createTestController({ fields: sameType, deck: [makeCreature("deck_1")] });
-    expect(tieResult(game, () => false)).toEqual({ state: "ongoing" });
+    const { game } = createTestController({ fields: sameType(), deck: [makeCreature("deck_1")] });
+    expect(tieResult(game)).toEqual({ state: "ongoing" });
   });
 
   it("is ongoing while the creatures differ in type", () => {
     const { game } = createTestController({ fields: [[makeCreature()], [makeCreature("cat", "cat")]] });
-    expect(tieResult(game, () => false)).toEqual({ state: "ongoing" });
+    expect(tieResult(game)).toEqual({ state: "ongoing" });
   });
 
-  it("is ongoing while someone can play a card, and asks about every card in every hand", () => {
-    const playable = makeCreature("playable");
-    const { game, players } = createTestController({ fields: sameType, hands: [[], [playable]] });
-    const asked: string[] = [];
-
-    const result = tieResult(game, (player, card) => {
-      asked.push(`${player.id}:${card.id}`);
-      return card === playable;
+  it("is ongoing while either player can still play a card, whoever's turn it is", () => {
+    // Player 0 is up and holds nothing playable; player 1 still holds a creature
+    const { game } = createTestController({
+      fields: sameType(),
+      hands: [[makeAction("birds", "birdArmy")], [makeCreature("playable")]],
     });
+    expect(game.currentPlayerIndex).toBe(0);
+    expect(tieResult(game)).toEqual({ state: "ongoing" });
+  });
 
-    expect(result).toEqual({ state: "ongoing" });
-    expect(asked).toEqual([`${players[1].id}:playable`]);
+  it("counts an action that can still act as playable", () => {
+    // The opponent's creatures are face down, so Power of Tea can still be played
+    const { game } = createTestController({ fields: sameType(), hands: [[makeAction("tea", "powerOfTea")], []] });
+    expect(tieResult(game)).toEqual({ state: "ongoing" });
   });
 });

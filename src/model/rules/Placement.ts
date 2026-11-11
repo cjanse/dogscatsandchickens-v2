@@ -1,5 +1,6 @@
 import type { Card } from "../cards/Card";
 import type { Player } from "../game/Player";
+import type { PlayerView } from "../game/views";
 
 /**
  * Field rows are `[creature, matchingTwin, upgrade (bottom), upgrade (top)]`.
@@ -35,7 +36,7 @@ export function canPlaceUpgrade(player: Player, row: number, col: number): boole
 }
 
 /** True if any creature on the field still has room for an upgrade. */
-export function hasUpgradeSlot(player: Player): boolean {
+export function hasUpgradeSlot(player: PlayerView): boolean {
   return player.field.some(row =>
     row[3] == null && (row[0]?.type === "creature" || row[1]?.type === "creature")
   );
