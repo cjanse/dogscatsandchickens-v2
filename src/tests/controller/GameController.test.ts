@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { GameController } from "../../controller/GameController";
 import type { CardData } from "../../model/types/CardData";
+import { HAND_LIMIT } from "../../model/rules/HandLimit";
 import { createTestController, makeAction, makeCreature, makeUpgrade } from "./helpers";
 
 const mockCards: Record<string, CardData> = {
@@ -380,6 +381,12 @@ describe("GameController", () => {
 
   describe("hand limit", () => {
     const sixCards = () => Array.from({ length: 6 }, (_, i) => makeCreature(`card_${i}`));
+
+    it("reports the hand limit", () => {
+      const { controller } = createTestController({ hands: [[], []] });
+
+      expect(controller.getHandLimit()).toBe(HAND_LIMIT);
+    });
 
     it("blocks End Turn while the hand is over the limit", () => {
       const cards = sixCards();

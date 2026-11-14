@@ -205,6 +205,11 @@ export class GameController {
     return this.game.isGameOver;
   }
 
+  /** The most cards a player may hold when ending their turn. */
+  getHandLimit(): number {
+    return HAND_LIMIT;
+  }
+
   hasExtraHandCards(player: PlayerView): boolean {
     return isOverHandLimit(player);
   }
