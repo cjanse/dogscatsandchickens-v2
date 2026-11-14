@@ -47,11 +47,18 @@
   --opp-hand-h: calc(52 * var(--px));
   --lane-h: calc(160 * var(--px));
   --lane-gutter: 14px;
-  --cell-gap: calc(2 * var(--px));
 
-  /* Card sizes, all 2:3. Field tokens are for the phase 2 tile. */
-  --field-w: calc(86 * var(--px));
-  --field-h: calc(129 * var(--px));
+  /*
+   * Field tiles. The lane's height minus the scrollbar gutter must hold, top to bottom: glow room, the
+   * twin's peek, the card, two upgrade slivers, glow room. So the card height comes from the lane
+   * (a tile is 1.19 card heights tall): 116 at 1x (77x116), 244 at 2x. See "Field lanes" below.
+   */
+  --field-g: calc(4 * var(--px));
+  --field-h-full: calc((var(--lane-h) - var(--lane-gutter) - 2 * var(--field-g)) / 1.19);
+  --field-gap: calc(18 * var(--px));
+  --field-pad-x: calc(12 * var(--px));
+
+  /* Card sizes, all 2:3 */
   --hand-w: calc(88 * var(--px));
   --hand-h: calc(132 * var(--px));
   --opp-back-w: calc(31 * var(--px));
@@ -119,6 +126,8 @@
   display: flex;
   flex-direction: column;
   padding: calc(8 * var(--px)) calc(16 * var(--px)) 0;
+  /* The lanes size their tiles from its width (100cqw = a lane's width). Its own width comes from its parent. */
+  container-type: inline-size;
 }
 
 /* Shared hand labels ("Opponent / 4 cards in hand", "Your hand / 6 cards") */
@@ -182,7 +191,23 @@
 
 /* ---------- Field lanes ---------- */
 
+/*
+ * Tile sizing, all in CSS (no measuring). --field-h is the card height: as tall as the lane allows
+ * (--field-h-full), shrinking to 80% so more tiles fit across, after which the lane scrolls.
+ * 100cqw is the lane's width (.gpd-board is the size container). --n (tiles + New creature slots) is set
+ * on the lane by FieldLane. Every other tile size is a ratio of --field-h:
+ *   card 2/3 h wide, twin peek 0.052 h up and 0.12 h across, upgrade sliver step 0.069 h,
+ *   so the tile is 0.7867 h wide and 1.19 h tall.
+ * --field-overflow is positive only when even 80% tiles don't fit: it turns on the faded edges and the
+ * "N creatures" pill.
+ */
 .gp-desktop .gpd-lane {
+  --n1: max(1, var(--n, 0));
+  --field-h: clamp(0.8 * var(--field-h-full), (100cqw - 2 * var(--field-pad-x) - (var(--n1) - 1) * var(--field-gap)) / var(--n1) / 0.7867, var(--field-h-full));
+  --tile-w: calc(var(--field-h) * 0.7867);
+  --tile-h: calc(var(--field-h) * 1.19);
+  --field-overflow: calc(var(--n1) * 0.8 * var(--field-h-full) * 0.7867 + (var(--n1) - 1) * var(--field-gap) + 2 * var(--field-pad-x) - 100cqw);
+  --field-fade: clamp(0px, var(--field-overflow) * 1000, var(--field-pad-x));
   position: relative;
   flex: none;
   height: var(--lane-h);
@@ -195,91 +220,258 @@
   margin-top: calc(4 * var(--px));
 }
 
-.gp-desktop .gpd-lane-label {
+.gp-desktop .gpd-lane-label, .gp-desktop .gpd-lane-count {
   position: absolute;
-  left: calc(12 * var(--px));
   z-index: 2;
   font-size: calc(11 * var(--tpx));
   font-weight: 700;
+  /* Tight boxes: in a crowded lane they sit between a card's edge strip and the lane edge or scrollbar */
+  line-height: 1;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--c-faint);
   pointer-events: none;
 }
 
-.gp-desktop .gpd-lane[data-side="opponent"] .gpd-lane-label {
-  top: calc(8 * var(--px));
+.gp-desktop .gpd-lane-label {
+  left: calc(12 * var(--px));
+  text-transform: uppercase;
 }
 
-.gp-desktop .gpd-lane[data-side="viewer"] .gpd-lane-label {
-  bottom: calc(8 * var(--px));
+/* "12 creatures": only while the lane is crowded (clipped away otherwise) */
+.gp-desktop .gpd-lane-count {
+  right: calc(12 * var(--px));
+  padding: calc(1 * var(--px)) calc(7 * var(--px));
+  border-radius: 999px;
+  background: var(--c-table);
+  color: var(--c-muted);
+  font-size: calc(10 * var(--tpx));
+  font-weight: 800;
+  letter-spacing: 0;
+  clip-path: inset(0 0 0 clamp(0%, 100% - var(--field-overflow) * 1000, 100%));
+}
+
+/* Opponent: labels sit above the cards' top edge (even on 80% tiles), over the upgrade slivers only */
+.gp-desktop .gpd-lane[data-side="opponent"] .gpd-lane-label, .gp-desktop .gpd-lane[data-side="opponent"] .gpd-lane-count {
+  top: calc(2 * var(--px));
+}
+
+/* Yours: above the scrollbar gutter and below the cards' bottom edge, over the upgrade slivers only */
+.gp-desktop .gpd-lane[data-side="viewer"] .gpd-lane-label, .gp-desktop .gpd-lane[data-side="viewer"] .gpd-lane-count {
+  bottom: calc(var(--lane-gutter) + 3 * var(--px));
 }
 
 /*
- * The scroller. The bottom padding always reserves --lane-gutter for a horizontal scrollbar, so cell
- * heights never depend on whether the scrollbar is showing (no clipping, no resize loop).
+ * The scroller. Tiles sit at the top, after --field-g of room for their glow. The bottom keeps
+ * --field-g plus the fixed --lane-gutter free, so the scrollbar never covers a tile and tile heights
+ * never depend on whether it shows.
  */
 .gp-desktop .gpd-lane-scroll {
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: safe center;
-  gap: calc(4 * var(--px));
-  padding: calc(8 * var(--px)) calc(12 * var(--px)) calc(8 * var(--px) + var(--lane-gutter));
+  gap: var(--field-gap);
+  padding: var(--field-g) var(--field-pad-x) calc(var(--field-g) + var(--lane-gutter));
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-color: rgb(246 239 227 / 0.28) transparent;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--field-fade), #000 calc(100% - var(--field-fade)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--field-fade), #000 calc(100% - var(--field-fade)), transparent);
 }
 
-.gp-desktop .gpd-row {
+/*
+ * One tile per creature slot. Children are placed in % of the tile (so they follow its size).
+ * Your side: twin peeks up and right, slivers hang below. The opponent's side is mirrored vertically.
+ * The tile is the container for the Activate pill's small-size query.
+ */
+.gp-desktop .gpd-tile {
+  position: relative;
   flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--cell-gap);
-}
-
-/* Phase 1: each model row is a column of up to 4 cells, as in the old view. --cols is set on the lane. */
-.gp-desktop .gpd-cell {
-  --cell-h: calc((var(--lane-h) - 16 * var(--px) - var(--lane-gutter) - (var(--cols) - 1) * var(--cell-gap)) / var(--cols));
-  --cell-w: calc(var(--cell-h) * 2 / 3);
-  flex: none;
-  width: var(--cell-w);
-  height: var(--cell-h);
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  /* FieldCell sets the border style and colour inline; the width comes from here */
-  border-width: 1.5px;
-  border-radius: calc(4 * var(--px));
-  background: #000;
+  width: var(--tile-w);
+  height: var(--tile-h);
   container-type: inline-size;
 }
 
-.gp-desktop .gpd-cell:empty {
-  background: rgb(246 239 227 / 0.04);
+.gp-desktop .gpd-zone {
+  position: absolute;
+  left: 0;
+  width: 84.75%;
+  border-radius: calc(6 * var(--px));
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
-.gp-desktop .gpd-cell-img {
+.gp-desktop .gpd-zone-front {
+  top: 4.37%;
+  height: 84.03%;
+  z-index: 3;
+}
+
+.gp-desktop .gpd-zone-twin {
+  left: 15.25%;
+  top: 0;
+  height: 84.03%;
+  z-index: 1;
+}
+
+/* Upgrade slivers: the element tucks behind the card and only one step shows. Inner (col 2) is closest to the card. */
+.gp-desktop .gpd-zone-inner {
+  top: 76.8%;
+  height: 17.4%;
+  z-index: 2;
+}
+
+/* Outer (col 3) hangs furthest out and triggers first */
+.gp-desktop .gpd-zone-outer {
+  top: 82.6%;
+  height: 17.4%;
+  z-index: 1;
+}
+
+.gp-desktop .gpd-zone-inner, .gp-desktop .gpd-zone-outer {
+  border-radius: 0 0 calc(5 * var(--px)) calc(5 * var(--px));
+}
+
+.gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-front {
+  top: 11.6%;
+}
+
+.gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-twin {
+  top: 15.97%;
+}
+
+.gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-inner {
+  top: 5.8%;
+}
+
+.gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-outer {
+  top: 0;
+}
+
+.gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-inner, .gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-outer {
+  border-radius: calc(5 * var(--px)) calc(5 * var(--px)) 0 0;
+}
+
+.gp-desktop .gpd-zone-img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border: 2px solid var(--c-rim);
+  border-radius: inherit;
+  background: #000;
 }
 
-/* The Activate button FieldCell draws on col 1. Centred on the card, clear of both text strips. */
-.gp-desktop .activate-pair-button {
+.gp-desktop .gpd-zone-front .gpd-zone-img {
+  box-shadow: 0 calc(2 * var(--px)) calc(6 * var(--px)) rgb(0 0 0 / 0.45);
+}
+
+/* A sliver shows a band of the art, never a text strip */
+.gp-desktop .gpd-zone-inner .gpd-zone-img, .gp-desktop .gpd-zone-outer .gpd-zone-img {
+  border-width: 1.5px;
+  object-position: 50% 45%;
+}
+
+/*
+ * The opponent's hidden upgrades (CardImage shows the coral Upgrade back): the back's handwriting reads as
+ * scribble in a thin band, so show its plain black top with a coral edge line instead.
+ */
+.gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-inner[data-facedown="true"] .gpd-zone-img, .gp-desktop .gpd-tile[data-side="opponent"] .gpd-zone-outer[data-facedown="true"] .gpd-zone-img {
+  object-position: 50% 0%;
+  border-top: 2px solid var(--c-back-upgrade);
+}
+
+/* Your own face-down cards: CardImage already dims the art; the rim turns dashed */
+.gp-desktop .gpd-tile[data-side="viewer"] .gpd-zone[data-facedown="true"] .gpd-zone-img {
+  border-style: dashed;
+  border-color: rgb(239 230 214 / 0.8);
+}
+
+/* Zone states. Orange = valid or selected, red = attack target, nothing else lights up. */
+.gp-desktop .gpd-zone[data-state="empty"] {
+  display: none;
+}
+
+.gp-desktop .gpd-zone[data-clickable="true"] {
+  cursor: pointer;
+}
+
+.gp-desktop .gpd-zone[data-state="neutral"][data-clickable="true"]:hover .gpd-zone-img {
+  filter: brightness(1.12);
+}
+
+.gp-desktop .gpd-zone[data-filled="true"][data-state="valid"], .gp-desktop .gpd-zone[data-state="selected"] {
+  box-shadow: 0 0 0 calc(2 * var(--px)) var(--c-orange), 0 0 calc(3 * var(--px)) calc(1 * var(--px)) rgb(242 140 40 / 0.6);
+}
+
+.gp-desktop .gpd-zone[data-state="attack"] {
+  box-shadow: 0 0 0 calc(2 * var(--px)) var(--c-red), 0 0 calc(3 * var(--px)) calc(1 * var(--px)) rgb(229 72 77 / 0.6);
+}
+
+.gp-desktop .gpd-zone[data-state="selected"] .gpd-zone-img {
+  border-color: var(--c-orange);
+}
+
+/* The attacker lifts (the front card only: the twin has no room above it) */
+.gp-desktop .gpd-zone-front[data-state="selected"] {
+  transform: translateY(-3%);
+}
+
+/*
+ * An empty slot the selected card can go to: drawn over the whole tile, so the whole stack is the click
+ * target, with a dashed frame outside the cards and a ghost of the slot itself. Only your own field has these.
+ */
+.gp-desktop .gpd-zone[data-filled="false"][data-state="valid"] {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  border-radius: calc(8 * var(--px));
+  outline: calc(2 * var(--px)) dashed var(--c-orange);
+  outline-offset: calc(1 * var(--px));
+  box-shadow: 0 0 calc(3 * var(--px)) calc(1 * var(--px)) rgb(242 140 40 / 0.35);
+}
+
+.gp-desktop .gpd-zone-ghost {
   position: absolute;
-  top: 50%;
-  bottom: auto;
-  left: 50%;
-  right: auto;
+  left: 0;
+  width: 84.75%;
+  border: 1.5px dashed var(--c-orange);
+  background: rgb(242 140 40 / 0.18);
+}
+
+/* The twin's ghost only shows where a twin would peek out (right and top edges) */
+.gp-desktop .gpd-zone-twin .gpd-zone-ghost {
+  left: 15.25%;
+  top: 0;
+  height: 84.03%;
+  border-radius: calc(6 * var(--px));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 82% 100%, 82% 5.2%, 0 5.2%);
+}
+
+.gp-desktop .gpd-zone-inner .gpd-zone-ghost {
+  top: 88.4%;
+  height: 5.8%;
+}
+
+.gp-desktop .gpd-zone-outer .gpd-zone-ghost {
+  top: 94.2%;
+  height: 5.8%;
+  border-radius: 0 0 calc(5 * var(--px)) calc(5 * var(--px));
+}
+
+/* "⚡ Activate" on a face-down pair, centred on the front card (clear of both text strips) */
+.gp-desktop .gpd-activate-pill {
+  position: absolute;
+  left: 42.37%;
+  top: 46.39%;
+  z-index: 6;
   transform: translate(-50%, -50%);
-  z-index: 2;
-  padding: calc(5 * var(--px)) calc(9 * var(--px)) calc(5 * var(--px)) calc(7 * var(--px));
-  border: none;
+  display: flex;
+  align-items: center;
+  gap: calc(3 * var(--px));
+  padding: calc(4 * var(--px)) calc(7 * var(--px)) calc(4 * var(--px)) calc(5 * var(--px));
   border-radius: 999px;
   background: var(--c-orange);
   color: var(--c-on-orange);
@@ -288,25 +480,58 @@
   line-height: 1;
   white-space: nowrap;
   box-shadow: 0 3px 8px rgb(0 0 0 / 0.5);
-  cursor: pointer;
 }
 
-.gp-desktop .activate-pair-button:hover {
+.gp-desktop .gpd-activate-pill:hover {
   background: var(--c-orange-hover);
 }
 
-/* Small cells: only the lightning icon shows (FieldCell's own cut-off is 64px) */
-@container (max-width: 63px) {
-  .gp-desktop .activate-pair-button {
-    width: calc(18 * var(--px));
-    height: calc(18 * var(--px));
-    padding: 0;
-    overflow: hidden;
-    text-align: left;
-    text-indent: calc(2 * var(--px));
-    font-size: calc(10 * var(--tpx));
-    line-height: calc(18 * var(--px));
+/* The bolt, in the pill's text colour */
+.gp-desktop .gpd-activate-icon {
+  flex: none;
+  display: block;
+  width: calc(9 * var(--px));
+  height: calc(12 * var(--px));
+}
+
+/* Small tiles: only the lightning icon (the tooltip still names the ability) */
+@container (max-width: 88px) {
+  .gp-desktop .gpd-activate-label {
+    display: none;
   }
+
+  .gp-desktop .gpd-activate-pill {
+    padding: calc(4 * var(--px));
+  }
+}
+
+/* "New creature": where the selected creature can start a new row, at either end of your lane */
+.gp-desktop .gpd-tile.gpd-new-slot {
+  width: calc(var(--field-h) * 2 / 3);
+}
+
+.gp-desktop .gpd-new-slot-card {
+  position: absolute;
+  left: 0;
+  top: 4.37%;
+  width: 100%;
+  height: 84.03%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 2px dashed var(--c-orange);
+  border-radius: calc(8 * var(--px));
+  background: rgb(242 140 40 / 0.08);
+  color: var(--c-orange);
+  font-size: calc(11 * var(--tpx));
+  font-weight: 800;
+  line-height: 1.3;
+  transition: background-color 0.15s ease-out;
+}
+
+.gp-desktop .gpd-new-slot-card:hover {
+  background: rgb(242 140 40 / 0.18);
 }
 
 /* ---------- Centre line ---------- */

@@ -818,3 +818,107 @@ describe("cards handed back by a view", () => {
     expect(controller.getSelectedCard()).toBeNull();
   });
 });
+
+describe("getFieldClickKind", () => {
+  /** Every cell a view can ask about on both fields: the placeholder rows above and below, and all 4 columns. */
+  function allKinds(controller: ReturnType<typeof createTestController>["controller"], players: ReturnType<typeof createTestController>["players"]) {
+    return players.flatMap(owner => {
+      const kinds = [];
+      for (let row = -1; row <= owner.field.length; row++) {
+        for (let col = 0; col < 4; col++) kinds.push(controller.getFieldClickKind(owner, row, col));
+      }
+      return kinds;
+    });
+  }
+
+  // Drift guard: each kind is asserted, then clickField on the same cell must do the matching thing
+  it("startAttack: the click starts an attack with that creature", () => {
+    const { controller, players } = createTestController();
+    const attacker = players[0].field[0][0];
+
+    expect(controller.getFieldClickKind(players[0], 0, 0)).toBe("startAttack");
+    expect(controller.clickField(players[0], 0, 0)).toEqual({ success: true });
+
+    expect(controller.getPendingAction()).toBe("attack");
+    expect(controller.getSelectedCard()).toBe(attacker);
+  });
+
+  it("attackTarget: the click resolves the attack on that creature", () => {
+    const { controller, players } = createTestController();
+    controller.clickField(players[0], 0, 0);
+
+    expect(controller.getFieldClickKind(players[1], 0, 0)).toBe("attackTarget");
+    // The attacker's own cell does nothing mid-attack
+    expect(controller.getFieldClickKind(players[0], 0, 0)).toBeNull();
+    expect(controller.clickField(players[1], 0, 0)).toEqual({ success: true });
+
+    // The Dog beats the Cat: the attack is over, the turn is spent, and the Cat's row is gone
+    expect(controller.getPendingAction()).toBeNull();
+    expect(controller.getMovesLeft()).toBe(0);
+    expect(players[1].field).toEqual([]);
+  });
+
+  it("teaTarget: the click reveals that card and discards the Tea card", () => {
+    const tea = makeAction("Power_of_Tea_1", "powerOfTea");
+    const { controller, game, players } = createTestController({ hands: [[tea], []] });
+    const target = players[1].field[0][0] as Card;
+    controller.clickHandCard(tea);
+
+    expect(controller.getFieldClickKind(players[1], 0, 0)).toBe("teaTarget");
+    expect(controller.getFieldClickKind(players[0], 0, 0)).toBeNull();
+    expect(controller.clickField(players[1], 0, 0)).toEqual({ success: true });
+
+    expect(target.facedUp).toBe(true);
+    expect(game.discardPile).toEqual([tea]);
+  });
+
+  it("place: the click puts the selected card in that cell", () => {
+    const twin = makeCreature(); // matches the Dog at row 0, col 0
+    const { controller, players } = createTestController({ hands: [[twin], []] });
+    controller.clickHandCard(twin);
+
+    expect(controller.getFieldClickKind(players[0], 0, 1)).toBe("place");
+    expect(controller.getFieldClickKind(players[0], 0, 0)).toBeNull();
+    expect(controller.getFieldClickKind(players[1], 0, 0)).toBeNull();
+    expect(controller.clickField(players[0], 0, 1)).toEqual({ success: true });
+
+    expect(players[0].field[0][1]).toBe(twin);
+    expect(players[0].hand).toEqual([]);
+  });
+
+  it("null: the click does nothing", () => {
+    const { controller, players } = createTestController();
+    const before = players.map(p => p.field.map(row => [...row]));
+
+    expect(controller.getFieldClickKind(players[1], 0, 0)).toBeNull();
+    expect(controller.clickField(players[1], 0, 0)).toEqual({ success: false, reason: "Nothing to do here" });
+
+    expect(players.map(p => p.field.map(row => [...row]))).toEqual(before);
+    expect(controller.getMovesLeft()).toBe(2);
+    expect(controller.getPendingAction()).toBeNull();
+  });
+
+  it("is null everywhere during the AI's turn", () => {
+    const { controller, players } = createTestController({ player2IsAI: true, currentPlayerIndex: 1 });
+
+    expect(allKinds(controller, players).every(kind => kind === null)).toBe(true);
+  });
+
+  it("is null everywhere while a steal, a revive or the discard phase is pending", () => {
+    const steal = createTestController({ hands: [[makeAction("Bird_Army_1", "birdArmy")], [makeCreature("opp_card")]] });
+    steal.controller.clickHandCard(steal.players[0].hand[0]);
+    expect(steal.controller.getPendingAction()).toBe("stealCard");
+    expect(allKinds(steal.controller, steal.players).every(kind => kind === null)).toBe(true);
+
+    const revive = createTestController({ hands: [[makeAction("Forest_Spirits", "spirit")], []] });
+    revive.game.discard(makeCreature("dead"));
+    revive.controller.clickHandCard(revive.players[0].hand[0]);
+    expect(revive.controller.getPendingAction()).toBe("creatureRevive");
+    expect(allKinds(revive.controller, revive.players).every(kind => kind === null)).toBe(true);
+
+    const discard = createTestController({ hands: [Array.from({ length: 6 }, (_, i) => makeCreature(`card_${i}`)), []] });
+    expect(discard.controller.startDiscardPhase().success).toBe(true);
+    expect(discard.controller.getPendingAction()).toBe("discardExtraCards");
+    expect(allKinds(discard.controller, discard.players).every(kind => kind === null)).toBe(true);
+  });
+});

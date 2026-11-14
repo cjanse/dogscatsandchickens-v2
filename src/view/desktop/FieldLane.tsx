@@ -1,14 +1,15 @@
 import type { CSSProperties } from "react";
 import type { GameControls } from "../../app/useGameController";
-import { columnsInUse, fieldRowsWithPlaceholders, visualCells } from "../../app/fieldRows";
+import { fieldRowsWithPlaceholders } from "../../app/fieldRows";
 import type { PlayerView } from "../../model/game/views";
-import { CardImage } from "../components/CardImage";
-import { FieldCell } from "../components/FieldCell";
+import { FieldTile } from "./FieldTile";
+import { NewCreatureSlot } from "./NewCreatureSlot";
 
 /**
- * One player's field. Phase 1 keeps the old layout: each model row is a column of cells, and every
- * row is as tall as the widest one, so all cells share one size (set in CSS from --cols). The
- * opponent's lane is drawn mirrored. A crowded lane scrolls sideways.
+ * One player's field: a tile per creature slot, in model row order (reversed for the opponent, whose lane
+ * is drawn mirrored). The empty rows above and below the field only show, as "New creature" spots, while
+ * the selected card can go there. Tile sizes come from CSS: the lane's height first, then shrinking to
+ * 80% when there are many tiles (`--n`), after which the lane scrolls sideways.
  */
 export function FieldLane({ controls, owner, isOpponent }: {
   controls: GameControls;
@@ -17,28 +18,31 @@ export function FieldLane({ controls, owner, isOpponent }: {
 }) {
   const fieldRows = fieldRowsWithPlaceholders(owner.field);
   const visualRows = isOpponent ? [...fieldRows].reverse() : fieldRows;
-  const cols = Math.max(...fieldRows.map(r => columnsInUse(r.cells)));
+  const shownRows = visualRows.filter(r => !r.isPlaceholder || controls.queries.canClickField(owner, r.modelRow, 0));
+  const creatures = owner.field.length;
 
   return (
-    <section className="gpd-lane" data-side={isOpponent ? "opponent" : "viewer"}>
+    <section
+      className="gpd-lane"
+      data-side={isOpponent ? "opponent" : "viewer"}
+      style={{ "--n": shownRows.length } as CSSProperties}
+    >
       <span className="gpd-lane-label">{isOpponent ? "Opponent's field" : "Your field"}</span>
-      <div className="gpd-lane-scroll" style={{ "--cols": cols } as CSSProperties}>
-        {visualRows.map(rowEntry => (
-          <div key={rowEntry.modelRow} className="gpd-row">
-            {visualCells(rowEntry.cells, isOpponent, cols).map(({ cell, modelCol }) => (
-              <FieldCell
-                key={modelCol}
-                className="gpd-cell"
+      {/* Only visible while the lane is crowded (CSS) */}
+      <span className="gpd-lane-count">{creatures} {creatures === 1 ? "creature" : "creatures"}</span>
+      <div className="gpd-lane-scroll">
+        {shownRows.map(rowEntry =>
+          rowEntry.isPlaceholder
+            ? <NewCreatureSlot key={rowEntry.modelRow} controls={controls} owner={owner} row={rowEntry.modelRow} />
+            : <FieldTile
+                key={rowEntry.modelRow}
                 controls={controls}
                 owner={owner}
                 row={rowEntry.modelRow}
-                col={modelCol}
-              >
-                {cell && <CardImage className="gpd-cell-img" controls={controls} card={cell} owner={owner} onField />}
-              </FieldCell>
-            ))}
-          </div>
-        ))}
+                cells={rowEntry.cells}
+                isOpponent={isOpponent}
+              />
+        )}
       </div>
     </section>
   );

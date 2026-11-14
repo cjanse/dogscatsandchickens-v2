@@ -10,6 +10,7 @@ import { loadV1Assets } from "./loadV1Assets";
 export type GameQueries = Pick<
   GameController,
   | "canClickField"
+  | "getFieldClickKind"
   | "canClickActivate"
   | "getPairAbility"
   | "canPlayHandCard"

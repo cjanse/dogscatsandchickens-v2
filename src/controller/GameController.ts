@@ -41,6 +41,9 @@ export type PlayResult =
 
 export type PendingAction = "revealHand" | "stealCard" | "powerOfTea" | "actionRevive" | "creatureRevive" | "upgradeRevive" | "attack" | "discardExtraCards" | null;
 
+/** What a click on a field cell would do (see `getFieldClickKind`). */
+export type FieldClickKind = "attackTarget" | "startAttack" | "teaTarget" | "place";
+
 /** The pending action a Spirit starts, by the kind of card it takes from the discard pile. */
 const REVIVE_ACTIONS: Record<CardType, PendingAction> = {
   creature: "creatureRevive",
@@ -593,6 +596,17 @@ export class GameController {
 
     // A creature or upgrade is selected: place it
     return this.canPlayCard(owner, this.selectedCard, row, col);
+  }
+
+  /**
+   * What clicking (row, col) on `owner`'s field would do right now, so views can tell an attack target
+   * from a placement or Power of Tea target. Null when `canClickField` is false. Mirrors `clickField`.
+   */
+  getFieldClickKind(owner: PlayerView, row: number, col: number): FieldClickKind | null {
+    if (!this.canClickField(owner, row, col)) return null;
+    if (this.pendingAction === "attack") return "attackTarget";
+    if (this.pendingAction === "powerOfTea") return "teaTarget";
+    return this.selectedCard === null ? "startAttack" : "place";
   }
 
   /**
