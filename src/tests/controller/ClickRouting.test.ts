@@ -922,3 +922,32 @@ describe("getFieldClickKind", () => {
     expect(allKinds(discard.controller, discard.players).every(kind => kind === null)).toBe(true);
   });
 });
+
+describe("isHandRevealed", () => {
+  it("is true only while the viewer's Messy Dorm shows the opponent's hand", () => {
+    const dorm = makeAction("Messy_Dorm_1", "messyDorm");
+    const { controller, players } = createTestController({ hands: [[dorm], [makeCreature("opp_card")]] });
+
+    expect(controller.isHandRevealed(players[1])).toBe(false);
+    expect(controller.clickHandCard(dorm)).toEqual({ success: true });
+    expect(controller.isHandRevealed(players[1])).toBe(true);
+    // Never your own hand
+    expect(controller.isHandRevealed(players[0])).toBe(false);
+
+    // The reveal ends at the next move, here deselecting the Dorm
+    expect(controller.clickHandCard(dorm)).toEqual({ success: true });
+    expect(controller.isHandRevealed(players[1])).toBe(false);
+  });
+
+  it("stays true when Discard Extra replaces the pending action", () => {
+    const dorm = makeAction("Messy_Dorm_1", "messyDorm");
+    const others = Array.from({ length: 5 }, (_, i) => makeCreature(`card_${i}`));
+    const { controller, players } = createTestController({ hands: [[dorm, ...others], [makeCreature("opp_card")]] });
+
+    controller.clickHandCard(dorm);
+    expect(controller.startDiscardPhase()).toEqual({ success: true });
+
+    expect(controller.getPendingAction()).toBe("discardExtraCards");
+    expect(controller.isHandRevealed(players[1])).toBe(true);
+  });
+});

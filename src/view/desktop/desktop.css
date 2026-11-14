@@ -166,18 +166,68 @@
   width: calc(110 * var(--px));
 }
 
+/* While Bird Army waits for a pick or Messy Dorm shows the hand, the label column holds the prompt (two lines at most) */
+.gp-desktop .gpd-opp-hand[data-clickable="true"] .gpd-hand-info, .gp-desktop .gpd-opp-hand[data-revealed="true"] .gpd-hand-info {
+  width: calc(200 * var(--px));
+}
+
+.gp-desktop .gpd-opp-prompt {
+  line-height: 1.2;
+  color: var(--c-muted);
+}
+
+.gp-desktop .gpd-opp-hand[data-clickable="true"] .gpd-opp-prompt {
+  color: var(--c-orange);
+}
+
 .gp-desktop .gpd-opp-hand-cards {
   flex: 1;
   min-width: 0;
   display: flex;
   justify-content: center;
   gap: calc(6 * var(--px));
-  /* Balances the label on the left, so the backs centre on the table */
+  /* Balances the label column on the left (its width + the row's gap), so the backs centre on the table */
   padding-right: calc(126 * var(--px));
 }
 
-.gp-desktop .gpd-opp-card {
+.gp-desktop .gpd-opp-hand[data-clickable="true"] .gpd-opp-hand-cards, .gp-desktop .gpd-opp-hand[data-revealed="true"] .gpd-opp-hand-cards {
+  padding-right: calc(216 * var(--px));
+}
+
+/*
+ * Lifting slots (opponent backs and your hand cards). The slot is the hit target and the popover anchor, and
+ * it carries the lift, so the popover is placed against the lifted card. The ::after hit extender fills the
+ * band the slot just left, so the hit area always covers the slot's resting box: hovering a card's bottom
+ * edge can't make it drop and re-lift (flicker). --lift switches at once while the transform eases.
+ */
+.gp-desktop .gpd-opp-slot, .gp-desktop .gpd-hand-slot {
+  --lift: 0px;
+  position: relative;
   flex: none;
+  transform: translateY(calc(-1 * var(--lift)));
+  transition: transform 0.15s ease-out;
+}
+
+.gp-desktop .gpd-opp-slot::after, .gp-desktop .gpd-hand-slot::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--lift);
+}
+
+/*
+ * A back's slot is 3 --px bigger than the card all round (the hit target: the row's full 52 height and half
+ * the gap each side), with a matching negative margin so the cards don't move.
+ */
+.gp-desktop .gpd-opp-slot {
+  margin: calc(-3 * var(--px));
+  padding: calc(3 * var(--px));
+  cursor: default;
+}
+
+.gp-desktop .gpd-opp-card {
   display: block;
   width: var(--opp-back-w);
   height: var(--opp-back-h);
@@ -185,11 +235,22 @@
   border: 1.5px solid var(--c-rim);
   border-radius: calc(4 * var(--px));
   background: #000;
-  cursor: default;
+  transition: box-shadow 0.15s ease-out;
+}
+
+/* Bird Army: every back is a valid pick (orange ring, 4 --px out), and the hovered one lifts 3 --px */
+.gp-desktop .gpd-opp-hand[data-clickable="true"] .gpd-opp-slot {
+  cursor: pointer;
 }
 
 .gp-desktop .gpd-opp-hand[data-clickable="true"] .gpd-opp-card {
-  cursor: pointer;
+  box-shadow: 0 0 0 calc(2 * var(--px)) var(--c-orange), 0 0 calc(3 * var(--px)) calc(1 * var(--px)) rgb(242 140 40 / 0.6);
+}
+
+@media (hover: hover) {
+  .gp-desktop .gpd-opp-hand[data-clickable="true"] .gpd-opp-slot:hover {
+    --lift: calc(3 * var(--px));
+  }
 }
 
 /* ---------- Field lanes ---------- */
@@ -576,7 +637,23 @@
 
 /* ---------- Your hand tray ---------- */
 
+/*
+ * The strip's step (card width + gap) comes from the hand count (--n, set by HandTray) and the room in the tray
+ * (100cqw is the board's width, .gpd-board is the size container): the natural step while the row fits, then
+ * overlap down to 40% of a card showing, then the strip scrolls sideways. At 1x the room is 820 --px, so
+ * 9 cards still don't overlap (step 91.5), overlap starts at 10 and scrolling at 22.
+ * Height (--px): 10 bottom padding + 132 card + 22 lift room = 164, the tray's height at every height-bound
+ * size. The selected lift (16) plus its ring (4) uses 20 of the 22.
+ * --hand-overflow is positive only when even the 40% step doesn't fit: the scrollbar then takes the bottom
+ * padding band instead of pushing the cards up into the lift room.
+ */
 .gp-desktop .gpd-tray {
+  --hand-gap: calc(6 * var(--px));
+  --hand-inset: calc(110 * var(--px));
+  --hand-avail: calc(100cqw - 2 * var(--hand-inset));
+  --hand-n: max(1, var(--n, 0));
+  --hand-step: clamp(0.4 * var(--hand-w), (var(--hand-avail) - var(--hand-w)) / max(1, var(--hand-n) - 1), var(--hand-w) + var(--hand-gap));
+  --hand-overflow: calc((var(--hand-n) - 1) * 0.4 * var(--hand-w) + var(--hand-w) - var(--hand-avail));
   position: relative;
   flex: 1;
   min-height: 0;
@@ -596,31 +673,66 @@
   color: var(--c-muted);
 }
 
+/*
+ * The scroller: inset 110 --px from both sides (clear of "Your hand"), less 6 --px of inner padding so the
+ * end cards' rings aren't clipped. The 22 --px lift room is padding inside it, because a sideways scroller
+ * also clips vertically. Its own stacking context keeps the cards' z-index below the turn overlay.
+ */
 .gp-desktop .gpd-tray-cards {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(10 * var(--px));
+  top: 0;
+  bottom: 0;
+  left: calc(var(--hand-inset) - var(--hand-gap));
+  right: calc(var(--hand-inset) - var(--hand-gap));
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
   align-items: flex-end;
-  gap: calc(6 * var(--px));
-  padding: 0 calc(110 * var(--px));
+  padding: calc(22 * var(--px)) var(--hand-gap) calc(10 * var(--px) - clamp(0px, var(--hand-overflow) * 1000, 10 * var(--px)));
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(246 239 227 / 0.28) transparent;
+  isolation: isolate;
 }
 
-/* The wrapper each hand card sits in (it opens the hover popover). It carries the selected card's lift, so
-   the popover is placed against where the card is drawn. */
+/* Later cards sit on top (DOM order). The selected card comes forward, the hovered one to the very front. */
 .gp-desktop .gpd-hand-slot {
-  flex: none;
-  transition: transform 0.15s ease-out;
+  cursor: pointer;
+}
+
+.gp-desktop .gpd-hand-slot + .gpd-hand-slot {
+  margin-left: calc(var(--hand-step) - var(--hand-w));
 }
 
 .gp-desktop .gpd-hand-slot.is-selected {
-  transform: translateY(calc(-16 * var(--px)));
+  --lift: calc(16 * var(--px));
+  z-index: 1;
+}
+
+.gp-desktop .gpd-hand-slot.is-unplayable {
+  cursor: not-allowed;
+}
+
+.gp-desktop .gpd-tray[data-discarding="true"] .gpd-hand-slot {
+  cursor: pointer;
+}
+
+/*
+ * Hover: to the front, and an 8 --px lift for a card you can act on (not when unplayable or on the attack
+ * turn, except while discarding, when every card can be clicked). A selected card stays at its 16.
+ * Every card still opens its popover.
+ */
+@media (hover: hover) {
+  .gp-desktop .gpd-hand-slot:hover {
+    z-index: 2;
+  }
+
+  .gp-desktop .gpd-tray:not([data-turn-type="attack"]) .gpd-hand-slot:hover:not(.is-selected, .is-unplayable), .gp-desktop .gpd-tray[data-discarding="true"] .gpd-hand-slot:hover:not(.is-selected) {
+    --lift: calc(8 * var(--px));
+  }
 }
 
 .gp-desktop .gpd-hand-card {
-  flex: none;
   display: block;
   width: var(--hand-w);
   height: var(--hand-h);
@@ -628,21 +740,32 @@
   border: 2px solid var(--c-rim);
   border-radius: calc(6 * var(--px));
   background: #000;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.5);
-  cursor: pointer;
+  box-shadow: 0 calc(4 * var(--px)) calc(12 * var(--px)) rgb(0 0 0 / 0.5);
   transition: box-shadow 0.15s ease-out, filter 0.15s ease-out;
 }
 
+/* The field's selected look: orange rim, a ring reaching 4 --px out, and a drop shadow that stays inside the lift room */
 .gp-desktop .gpd-hand-card.is-selected {
   border-color: var(--c-orange);
-  box-shadow: 0 0 0 2px rgb(242 140 40 / 0.45), 0 10px 22px rgb(0 0 0 / 0.6);
+  box-shadow: 0 0 0 calc(2 * var(--px)) var(--c-orange), 0 0 calc(3 * var(--px)) calc(1 * var(--px)) rgb(242 140 40 / 0.6), 0 calc(6 * var(--px)) calc(12 * var(--px)) rgb(0 0 0 / 0.55);
 }
 
-/* CardImage sets opacity inline, so dimming uses filter (the same look on the dark tray) */
-.gp-desktop .gpd-hand-card.is-unplayable {
+/* CardImage sets opacity inline, so dimming uses filter. Attack turn: the whole hand dims. */
+.gp-desktop .gpd-tray[data-turn-type="attack"] .gpd-hand-card {
+  filter: brightness(0.55) saturate(0.7);
+}
+
+/* Not playable: greyed (wins over the attack dim) */
+.gp-desktop .gpd-tray .gpd-hand-card.is-unplayable {
   border-color: rgb(239 230 214 / 0.6);
   filter: grayscale(0.6) brightness(0.45);
-  cursor: not-allowed;
+}
+
+/* Discard Extra: every card is a valid click, so no dimming at all and the valid ring on each */
+.gp-desktop .gpd-tray[data-discarding="true"] .gpd-hand-card {
+  border-color: var(--c-rim);
+  filter: none;
+  box-shadow: 0 0 0 calc(2 * var(--px)) var(--c-orange), 0 0 calc(3 * var(--px)) calc(1 * var(--px)) rgb(242 140 40 / 0.6);
 }
 
 /* ---------- Opponent's turn ---------- */

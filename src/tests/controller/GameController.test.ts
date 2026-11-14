@@ -412,6 +412,17 @@ describe("GameController", () => {
       expect(game.currentPlayerIndex).toBe(1);
     });
 
+    it("reports the discard phase only between Discard Extra and getting back to the limit", () => {
+      const cards = sixCards();
+      const { controller } = createTestController({ hands: [cards, []] });
+
+      expect(controller.isDiscardPhase()).toBe(false);
+      controller.startDiscardPhase();
+      expect(controller.isDiscardPhase()).toBe(true);
+      controller.clickHandCard(cards[0]);
+      expect(controller.isDiscardPhase()).toBe(false);
+    });
+
     it("offers Discard Extra only while over the limit and not yet discarding", () => {
       const cards = sixCards();
       const { controller } = createTestController({ hands: [cards, []] });

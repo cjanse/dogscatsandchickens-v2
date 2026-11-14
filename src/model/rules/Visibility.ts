@@ -10,8 +10,12 @@ export function isCardVisible(game: GameView, card: CardView, owner: PlayerView,
   if (owner.id === viewer.id) return true;
   if (card.facedUp) return true;
 
-  const handRevealed = game.temporaryEffects.some(
+  return isHandRevealed(game, owner, viewer) && owner.hand.includes(card);
+}
+
+/** Whether a Messy Dorm reveal that `viewer` played currently shows `owner`'s hand to them. */
+export function isHandRevealed(game: GameView, owner: PlayerView, viewer: PlayerView): boolean {
+  return game.temporaryEffects.some(
     e => e.type === "revealHand" && e.targetPlayerId === owner.id && e.sourcePlayerId === viewer.id
   );
-  return handRevealed && owner.hand.includes(card);
 }

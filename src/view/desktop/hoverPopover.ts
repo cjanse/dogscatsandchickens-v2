@@ -16,8 +16,8 @@ export interface PopoverItem {
 
 export interface PopoverContent {
   items: readonly PopoverItem[];
-  /** "side": beside the anchor (field tiles). "above": over it (hand cards). */
-  placement: "side" | "above";
+  /** "side": beside the anchor (field tiles). "above": over it (your hand). "below": under it (the opponent's hand, along the top). */
+  placement: "side" | "above" | "below";
 }
 
 export interface OpenPopover {
@@ -122,17 +122,17 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
  * gap to the anchor and to the window's edge, so nothing here needs a pixel constant.
  * - side: right of the anchor if it fits, else left of it if that fits, else on the roomier side,
  *   clamped into the window. Vertically centred on the anchor, clamped.
- * - above: centred over the anchor, clamped into the window.
+ * - above / below: centred over / under the anchor, clamped into the window.
  */
 export function placePopover(anchor: Box, size: { width: number; height: number }, bounds: { width: number; height: number }, placement: PopoverContent["placement"]) {
   const maxX = bounds.width - size.width;
   const maxY = bounds.height - size.height;
   const anchorRight = anchor.left + anchor.width;
 
-  if (placement === "above") {
+  if (placement === "above" || placement === "below") {
     return {
       x: clamp(anchor.left + anchor.width / 2 - size.width / 2, 0, maxX),
-      y: clamp(anchor.top - size.height, 0, maxY),
+      y: clamp(placement === "above" ? anchor.top - size.height : anchor.top + anchor.height, 0, maxY),
     };
   }
 

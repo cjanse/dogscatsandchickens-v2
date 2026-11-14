@@ -25,6 +25,8 @@ export type GameQueries = Pick<
   | "getMaxMoves"
   | "getTurnType"
   | "canStartDiscardPhase"
+  | "isDiscardPhase"
+  | "isHandRevealed"
   | "getHandLimit"
   | "getPendingAction"
 >;

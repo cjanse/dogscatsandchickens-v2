@@ -28,7 +28,7 @@ import {
   startHandReveal,
   stealRandomCard,
 } from "../model/rules/Actions";
-import { isCardVisible } from "../model/rules/Visibility";
+import { isCardVisible, isHandRevealed } from "../model/rules/Visibility";
 import { canDraw, canStartAttack, firstTurnAllows, isFirstTurn } from "../model/rules/Turn";
 import { AIController } from "./AIController";
 
@@ -223,6 +223,11 @@ export class GameController {
       this.isHumanTurn() &&
       this.hasExtraHandCards(this.game.currentPlayer) &&
       this.pendingAction !== "discardExtraCards";
+  }
+
+  /** True while the current player is discarding down to the hand limit (after Discard Extra): every hand-card click discards. */
+  isDiscardPhase(): boolean {
+    return this.pendingAction === "discardExtraCards";
   }
 
   startDiscardPhase(): PlayResult {
@@ -863,6 +868,11 @@ export class GameController {
   /** Whether the viewer (`getViewer()`) can see `card`, which belongs to `owner` (in their hand or on their field). */
   isCardVisibleToPlayer(card: CardView, owner: PlayerView): boolean {
     return isCardVisible(this.game, card, owner, this.viewer());
+  }
+
+  /** Whether a Messy Dorm reveal currently shows `owner`'s hand to the viewer (`getViewer()`). */
+  isHandRevealed(owner: PlayerView): boolean {
+    return isHandRevealed(this.game, owner, this.viewer());
   }
 
   /**
